@@ -1,12 +1,5 @@
 import { useState } from "react";
-
-const NAV = [
-  { id: "dashboard", label: "Dashboard", icon: "⚡" },
-  { id: "setup", label: "New Match", icon: "🏸" },
-  { id: "tournament", label: "Tournament", icon: "🏆" },
-  { id: "rankings", label: "Rankings", icon: "📊" },
-  { id: "profile", label: "Profile", icon: "👤" },
-];
+import Sidebar from "../components/Sidebar";
 
 const PLAYERS = [
   { name: "Rahul Sharma", club: "Eagles FC", rating: 2104, wins: 48, losses: 6, points: 8920, init: "RS", trend: "+12" },
@@ -19,7 +12,7 @@ const PLAYERS = [
   { name: "Rohan Das", club: "Court Kings", rating: 1635, wins: 22, losses: 20, points: 4350, init: "RD", trend: "-4" },
 ];
 
-function Rankings({ onNav }) {
+function Rankings({ onNav, onLogout, user }) {
   const [category, setCategory] = useState("singles");
 
   return (
@@ -27,16 +20,6 @@ function Rankings({ onNav }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        .sidebar { width: 240px; min-height: 100vh; background: #0d0f15; border-right: 1px solid rgba(0,255,200,0.08); display: flex; flex-direction: column; position: fixed; left: 0; top: 0; bottom: 0; z-index: 100; }
-        .sidebar-logo { padding: 28px 24px; border-bottom: 1px solid rgba(0,255,200,0.08); }
-        .sidebar-logo h1 { font-family: 'Bebas Neue', sans-serif; font-size: 36px; letter-spacing: 4px; color: #fff; }
-        .sidebar-logo h1 span { color: #00ffc8; }
-        .sidebar-logo p { font-family: 'Rajdhani', sans-serif; font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.25); text-transform: uppercase; margin-top: 2px; }
-        .nav-items { padding: 20px 12px; flex: 1; }
-        .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 4px; cursor: pointer; margin-bottom: 4px; font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.35); transition: all 0.2s; border: 1px solid transparent; }
-        .nav-item:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.04); }
-        .nav-item.active { color: #00ffc8; background: rgba(0,255,200,0.06); border-color: rgba(0,255,200,0.15); }
 
         .main { margin-left: 240px; flex: 1; padding: 32px; }
 
@@ -72,16 +55,7 @@ function Rankings({ onNav }) {
         .trend-down { color: #ff3250; }
       `}</style>
 
-      <div className="sidebar">
-        <div className="sidebar-logo"><h1>Match<span>X</span></h1><p>Badminton Platform</p></div>
-        <div className="nav-items">
-          {NAV.map(n => (
-            <div key={n.id} className={`nav-item ${n.id === "rankings" ? "active" : ""}`} onClick={() => onNav(n.id)}>
-              <span>{n.icon}</span>{n.label}
-            </div>
-          ))}
-        </div>
-      </div>
+      <Sidebar active="rankings" user={user} onNav={onNav} onLogout={onLogout} />
 
       <div className="main">
         <div className="page-title">🏅 Rankings</div>
