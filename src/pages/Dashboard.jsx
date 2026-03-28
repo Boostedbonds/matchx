@@ -346,7 +346,7 @@ function Dashboard({ user, onNav, onLogout }) {
                   <div className="action-icon">🏆</div>
                   <div className="action-label">Tournament</div>
                 </div>
-                <div className="action-btn">
+                <div className="action-btn" onClick={() => onNav("spectator")}>
                   <div className="action-icon">📡</div>
                   <div className="action-label">Watch Live</div>
                 </div>
