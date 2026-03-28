@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import useMatchStore from "../store/matchStore";
+import VoiceScorer from "./VoiceScorer";
 
 const COMMENTARY = [
   "Powerful smash from Team A!",
@@ -19,6 +20,7 @@ function OverlayUI({ matchData, onBack }) {
   const [commentary, setCommentary] = useState(["Match started! Both teams ready."]);
   const [game, setGame] = useState(1);
   const [showWinner, setShowWinner] = useState(false);
+  const [showVoice, setShowVoice] = useState(false);
   const commRef = useRef(null);
 
   useEffect(() => {
@@ -30,6 +32,15 @@ function OverlayUI({ matchData, onBack }) {
     const msg = `${matchData?.[`team${team}`] || `Team ${team}`} scores! ${COMMENTARY[Math.floor(Math.random() * COMMENTARY.length)]}`;
     setCommentary(prev => [msg, ...prev].slice(0, 8));
   };
+
+  const handleVoiceCommentary = (text) => {
+    setCommentary(prev => [text, ...prev].slice(0, 12));
+  };
+
+  const handleVoiceScoreA = () => { scoreA(); handleVoiceCommentary(`🏸 Point to ${matchData?.teamA || "Team A"}! Voice scored.`); };
+  const handleVoiceScoreB = () => { scoreB(); handleVoiceCommentary(`🏸 Point to ${matchData?.teamB || "Team B"}! Voice scored.`); };
+  const handleVoiceReset = () => { reset(); handleVoiceCommentary("🔄 Score reset by scorer."); };
+  const handleNextGame = () => { setGame(g => g + 1); handleVoiceCommentary(`🎮 Game ${game + 1} starting!`); };
 
   return (
     <div style={{ position: "absolute", inset: 0, pointerEvents: "none", fontFamily: "'Rajdhani', sans-serif" }}>
@@ -254,10 +265,69 @@ function OverlayUI({ matchData, onBack }) {
         }
 
         .new-match-btn:hover { background: #fff; box-shadow: 0 0 50px rgba(0,255,200,0.5); }
+
+        /* Voice Panel */
+        .voice-toggle-btn {
+          position: absolute; top: 20px; right: 20px;
+          background: rgba(255,50,80,0.15);
+          border: 1px solid rgba(255,50,80,0.4);
+          color: #ff3250; cursor: pointer; padding: 8px 16px;
+          font-family: 'Rajdhani', sans-serif; font-size: 11px; letter-spacing: 2px;
+          text-transform: uppercase; pointer-events: auto; transition: all 0.2s;
+          display: flex; align-items: center; gap: 6px;
+        }
+
+        .voice-toggle-btn.active {
+          background: #ff3250; color: #fff;
+          box-shadow: 0 0 20px rgba(255,50,80,0.4);
+        }
+
+        .voice-toggle-btn:hover { background: rgba(255,50,80,0.3); }
+
+        .voice-panel {
+          position: absolute; top: 0; right: 0; bottom: 0;
+          width: 360px;
+          background: rgba(8,10,15,0.97);
+          border-left: 1px solid rgba(255,50,80,0.2);
+          backdrop-filter: blur(20px);
+          pointer-events: auto;
+          overflow-y: auto;
+          animation: slideLeft 0.3s ease;
+          z-index: 20;
+        }
+
+        @keyframes slideLeft { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        .voice-panel-header {
+          padding: 16px 20px;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+          display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .voice-panel-title {
+          font-family: 'Bebas Neue', sans-serif;
+          font-size: 20px; letter-spacing: 3px; color: #fff;
+        }
+
+        .voice-panel-close {
+          background: none; border: none; color: rgba(255,255,255,0.3);
+          cursor: pointer; font-size: 18px; line-height: 1; padding: 0;
+          transition: color 0.2s;
+        }
+
+        .voice-panel-close:hover { color: #fff; }
       `}</style>
 
       {/* Back Button */}
       {onBack && <button className="back-btn" onClick={onBack}>← Dashboard</button>}
+
+      {/* Voice Scorer Toggle */}
+      <button
+        className={`voice-toggle-btn ${showVoice ? "active" : ""}`}
+        onClick={() => setShowVoice(v => !v)}
+      >
+        🎙 {showVoice ? "Hide Voice" : "Voice Scorer"}
+      </button>
 
       {/* Top Scoreboard */}
       <div className="overlay-top">
@@ -304,6 +374,24 @@ function OverlayUI({ matchData, onBack }) {
           <div key={i} className="comm-item">{c}</div>
         ))}
       </div>
+
+      {/* Voice Scorer Panel */}
+      {showVoice && (
+        <div className="voice-panel">
+          <div className="voice-panel-header">
+            <div className="voice-panel-title">🎙 Voice Scorer</div>
+            <button className="voice-panel-close" onClick={() => setShowVoice(false)}>✕</button>
+          </div>
+          <VoiceScorer
+            matchData={matchData}
+            onScoreA={handleVoiceScoreA}
+            onScoreB={handleVoiceScoreB}
+            onReset={handleVoiceReset}
+            onCommentary={handleVoiceCommentary}
+            onNextGame={handleNextGame}
+          />
+        </div>
+      )}
 
       {/* Winner */}
       {showWinner && (
