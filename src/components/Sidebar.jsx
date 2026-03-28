@@ -1,170 +1,268 @@
-const NAV = [
-  { id: "dashboard", label: "Dashboard", icon: "⚡" },
-  { id: "setup", label: "New Match", icon: "🏸" },
+import { useState, useEffect } from "react";
+
+const NAV_SCORER = [
+  { id: "dashboard",  label: "Dashboard",  icon: "⚡" },
+  { id: "setup",      label: "New Match",  icon: "🏸" },
   { id: "tournament", label: "Tournament", icon: "🏆" },
-  { id: "rankings", label: "Rankings", icon: "📊" },
-  { id: "players", label: "Players", icon: "👥" },
-  { id: "badges", label: "Badges", icon: "🎖️" },
-  { id: "profile", label: "Profile", icon: "👤" },
+  { id: "rankings",   label: "Rankings",   icon: "📊" },
+  { id: "players",    label: "Players",    icon: "👥" },
+  { id: "profile",    label: "Profile",    icon: "👤" },
+  { id: "admin",      label: "Admin",      icon: "🔧" },
 ];
 
-function Sidebar({ active, user, onNav, onLogout }) {
+const NAV_SPECTATOR = [
+  { id: "dashboard",  label: "Matches",    icon: "📡" },
+  { id: "rankings",   label: "Rankings",   icon: "📊" },
+  { id: "players",    label: "Players",    icon: "👥" },
+  { id: "profile",    label: "Profile",    icon: "👤" },
+];
+
+function Sidebar({ active, user, onNav, onLogout, role = "scorer" }) {
+  const [isMobilePortrait, setIsMobilePortrait] = useState(false);
+  const [logoTaps, setLogoTaps]                 = useState(0);
+
+  const NAV = role === "spectator" ? NAV_SPECTATOR : NAV_SCORER;
+
+  // Secret admin access — tap logo 5 times
+  function handleLogoTap() {
+    const next = logoTaps + 1;
+    setLogoTaps(next);
+    if (next >= 5) {
+      setLogoTaps(0);
+      onNav("admin");
+    }
+  }
+
+  useEffect(() => {
+    function check() {
+      const portrait = window.innerWidth <= 768 && window.innerHeight > window.innerWidth;
+      setIsMobilePortrait(portrait);
+    }
+    check();
+    window.addEventListener("resize", check);
+    window.addEventListener("orientationchange", check);
+    return () => {
+      window.removeEventListener("resize", check);
+      window.removeEventListener("orientationchange", check);
+    };
+  }, []);
+
+  // ── Mobile portrait: bottom nav bar ──────────────────────────────────────
+  if (isMobilePortrait) {
+    return (
+      <>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap');
+
+          .bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            height: 64px; z-index: 200;
+            background: #0d0f15;
+            border-top: 1px solid rgba(0,255,200,0.1);
+            display: flex; align-items: stretch;
+          }
+
+          .bn-item {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 3px; cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 9px; font-weight: 700;
+            letter-spacing: 1px; text-transform: uppercase;
+            color: rgba(255,255,255,0.3);
+            transition: all 0.15s;
+            border-top: 2px solid transparent;
+            background: none; border-left: none; border-right: none; border-bottom: none;
+          }
+
+          .bn-item.active {
+            color: #00ffc8;
+            border-top-color: #00ffc8;
+            background: rgba(0,255,200,0.04);
+          }
+
+          .bn-item:hover:not(.active) { color: rgba(255,255,255,0.6); }
+
+          .bn-icon { font-size: 18px; line-height: 1; }
+
+          /* Role badge pill at top of screen on mobile */
+          .mobile-role-badge {
+            position: fixed; top: 12px; right: 12px; z-index: 201;
+            background: rgba(0,255,200,0.1);
+            border: 1px solid rgba(0,255,200,0.25);
+            padding: 4px 10px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 10px; font-weight: 700;
+            letter-spacing: 2px; text-transform: uppercase;
+            color: #00ffc8;
+          }
+        `}</style>
+
+        {/* Role badge top-right */}
+        <div className="mobile-role-badge">
+          {role === "scorer" ? "🎯 Scorer" : "👁 Spectator"}
+        </div>
+
+        {/* Bottom nav */}
+        <nav className="bottom-nav">
+          {NAV.map(n => (
+            <button
+              key={n.id}
+              className={`bn-item ${active === n.id ? "active" : ""}`}
+              onClick={() => onNav(n.id)}
+            >
+              <span className="bn-icon">{n.icon}</span>
+              {n.label}
+            </button>
+          ))}
+        </nav>
+      </>
+    );
+  }
+
+  // ── Desktop: standard sidebar ─────────────────────────────────────────────
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;500;600;700&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap');
 
         .sidebar {
-          width: 220px; height: 100vh;
+          width: 220px; min-height: 100vh;
           background: #0d0f15;
-          border-right: 1px solid rgba(0,255,200,0.08);
+          border-right: 1px solid rgba(0,255,200,0.07);
           display: flex; flex-direction: column;
-          position: fixed; left: 0; top: 0; bottom: 0;
-          z-index: 100; overflow-y: auto;
+          position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
         }
 
-        .sidebar-logo {
-          padding: 24px 20px;
-          border-bottom: 1px solid rgba(0,255,200,0.08);
-          flex-shrink: 0;
+        .sb-logo {
+          padding: 26px 22px 20px;
+          border-bottom: 1px solid rgba(0,255,200,0.07);
         }
 
-        .sidebar-logo h1 {
+        .sb-logo h1 {
           font-family: 'Bebas Neue', sans-serif;
-          font-size: 32px; letter-spacing: 4px; color: #fff;
+          font-size: 34px; letter-spacing: 4px; color: #fff; line-height: 1;
         }
 
-        .sidebar-logo h1 span { color: #00ffc8; }
+        .sb-logo h1 span { color: #00ffc8; }
 
-        .sidebar-logo p {
+        .sb-logo p {
           font-family: 'Rajdhani', sans-serif;
           font-size: 9px; letter-spacing: 3px;
-          color: rgba(255,255,255,0.25);
-          text-transform: uppercase; margin-top: 2px;
+          color: rgba(255,255,255,0.2); text-transform: uppercase; margin-top: 3px;
         }
 
-        .nav-section-label {
+        /* Role badge under logo */
+        .sb-role {
+          display: inline-flex; align-items: center; gap: 5px;
+          margin-top: 8px; padding: 3px 9px;
           font-family: 'Rajdhani', sans-serif;
-          font-size: 9px; letter-spacing: 3px;
-          color: rgba(255,255,255,0.15);
+          font-size: 9px; font-weight: 700; letter-spacing: 2px;
           text-transform: uppercase;
-          padding: 16px 20px 6px;
         }
 
-        .nav-items { padding: 8px 10px; flex: 1; }
+        .sb-role.scorer    { background: rgba(0,255,200,0.07); color: #00ffc8; border: 1px solid rgba(0,255,200,0.15); }
+        .sb-role.spectator { background: rgba(255,184,0,0.07); color: #ffb800; border: 1px solid rgba(255,184,0,0.15); }
 
-        .nav-item {
-          display: flex; align-items: center; gap: 10px;
-          padding: 10px 14px; border-radius: 4px;
-          cursor: pointer; margin-bottom: 2px;
+        .sb-nav { padding: 16px 10px; flex: 1; }
+
+        .sb-nav-item {
+          display: flex; align-items: center; gap: 11px;
+          padding: 11px 14px; border-radius: 3px;
+          cursor: pointer; margin-bottom: 3px;
           font-family: 'Rajdhani', sans-serif;
-          font-size: 13px; font-weight: 600;
+          font-size: 13px; font-weight: 700;
           letter-spacing: 1.5px; text-transform: uppercase;
-          color: rgba(255,255,255,0.35);
+          color: rgba(255,255,255,0.3);
           transition: all 0.2s;
           border: 1px solid transparent;
+          background: none;
+          width: 100%; text-align: left;
         }
 
-        .nav-item:hover {
-          color: rgba(255,255,255,0.8);
-          background: rgba(255,255,255,0.04);
+        .sb-nav-item:hover { color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.03); }
+        .sb-nav-item.active { color: #00ffc8; background: rgba(0,255,200,0.05); border-color: rgba(0,255,200,0.12); }
+
+        .sb-nav-icon { font-size: 15px; flex-shrink: 0; }
+
+        /* User section at bottom */
+        .sb-user {
+          padding: 14px 14px 18px;
+          border-top: 1px solid rgba(255,255,255,0.05);
         }
 
-        .nav-item.active {
-          color: #00ffc8;
-          background: rgba(0,255,200,0.06);
-          border-color: rgba(0,255,200,0.15);
+        .sb-user-row {
+          display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
         }
 
-        .sidebar-bottom {
-          border-top: 1px solid rgba(0,255,200,0.08);
+        .sb-user-avatar {
+          width: 34px; height: 34px; border-radius: 50%;
+          background: linear-gradient(135deg, #00ffc8, #0088ff);
+          display: flex; align-items: center; justify-content: center;
+          font-family: 'Bebas Neue', sans-serif; font-size: 13px; color: #000;
           flex-shrink: 0;
         }
 
-        .sidebar-user {
-          padding: 14px 16px;
-          display: flex; align-items: center; gap: 10px;
-          cursor: pointer; transition: background 0.2s;
+        .sb-user-name {
+          font-family: 'Rajdhani', sans-serif; font-size: 13px;
+          font-weight: 700; color: #fff; letter-spacing: 0.5px;
         }
 
-        .sidebar-user:hover { background: rgba(255,255,255,0.03); }
-
-        .s-avatar {
-          width: 36px; height: 36px;
-          background: linear-gradient(135deg, #00ffc8, #0088ff);
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          font-family: 'Bebas Neue', sans-serif;
-          font-size: 14px; color: #000; flex-shrink: 0;
+        .sb-user-rating {
+          font-family: 'Rajdhani', sans-serif; font-size: 10px;
+          color: rgba(0,255,200,0.5); letter-spacing: 1px;
         }
 
-        .s-name {
-          font-family: 'Rajdhani', sans-serif;
-          font-size: 13px; font-weight: 700; color: #fff;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        .sb-logout {
+          width: 100%; padding: 9px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.07);
+          color: rgba(255,255,255,0.25); cursor: pointer;
+          font-family: 'Rajdhani', sans-serif; font-size: 11px;
+          font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+          transition: all 0.2s; text-align: center;
         }
 
-        .s-rank {
-          font-family: 'Rajdhani', sans-serif;
-          font-size: 10px; color: #00ffc8; letter-spacing: 1px;
-        }
-
-        .logout-btn {
-          width: 100%; padding: 12px 16px;
-          background: none; border: none; border-top: 1px solid rgba(255,255,255,0.04);
-          cursor: pointer;
-          display: flex; align-items: center; gap: 10px;
-          font-family: 'Rajdhani', sans-serif;
-          font-size: 12px; font-weight: 700;
-          letter-spacing: 2px; text-transform: uppercase;
-          color: rgba(255,80,80,0.5);
-          transition: all 0.2s;
-        }
-
-        .logout-btn:hover {
-          background: rgba(255,50,50,0.06);
-          color: #ff5050;
-        }
+        .sb-logout:hover { color: rgba(255,80,80,0.8); border-color: rgba(255,80,80,0.2); background: rgba(255,80,80,0.04); }
       `}</style>
 
-      <div className="sidebar">
-        <div className="sidebar-logo">
+      <aside className="sidebar">
+        <div className="sb-logo" onClick={handleLogoTap} style={{ cursor: "default", userSelect: "none" }}>
           <h1>Match<span>X</span></h1>
           <p>Badminton Platform</p>
+          <div className={`sb-role ${role}`}>
+            {role === "scorer" ? "🎯 Scorer" : "👁 Spectator"}
+          </div>
         </div>
 
-        <div className="nav-items">
-          <div className="nav-section-label">Main</div>
+        <nav className="sb-nav">
           {NAV.map(n => (
-            <div
+            <button
               key={n.id}
-              className={`nav-item ${active === n.id ? "active" : ""}`}
+              className={`sb-nav-item ${active === n.id ? "active" : ""}`}
               onClick={() => onNav(n.id)}
             >
-              <span>{n.icon}</span>{n.label}
-            </div>
+              <span className="sb-nav-icon">{n.icon}</span>
+              {n.label}
+            </button>
           ))}
-        </div>
+        </nav>
 
-        <div className="sidebar-bottom">
-          {user && (
-            <div className="sidebar-user" onClick={() => onNav("profile")}>
-              <div className="s-avatar">{user.avatar}</div>
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                <div className="s-name">{user.name}</div>
-                <div className="s-rank">#{user.rank} · {user.rating} ELO</div>
+        {user && (
+          <div className="sb-user">
+            <div className="sb-user-row">
+              <div className="sb-user-avatar">{user.init || user.name?.slice(0,2).toUpperCase()}</div>
+              <div>
+                <div className="sb-user-name">{user.name}</div>
+                <div className="sb-user-rating">ELO {user.rating}</div>
               </div>
             </div>
-          )}
-          <button className="logout-btn" onClick={onLogout}>
-            <span>🚪</span> Logout
-          </button>
-        </div>
-      </div>
+            <button className="sb-logout" onClick={onLogout}>↩ Sign Out</button>
+          </div>
+        )}
+      </aside>
     </>
   );
 }
 
 export default Sidebar;
-export { NAV };

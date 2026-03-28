@@ -14,40 +14,52 @@ const DEMO_P2 = { name: "Arjun Mehta",  init: "AM", club: "Smash FC",  rating: 1
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MatchScorer({ onNav, onLogout, user, player1 = DEMO_P1, player2 = DEMO_P2 }) {
-  const [match, setMatch]         = useState(() => createMatchState(player1, player2));
-  const [shotPicker, setShotPicker] = useState(null); // "p1" | "p2" | null
-  const [tab, setTab]             = useState("score"); // "score" | "stats"
-  const [flash, setFlash]         = useState(null);   // "p1" | "p2" for score flash
-  const commentaryRef             = useRef(null);
+export default function MatchScorer({ onNav, onLogout, user, onMatchUpdate, onMatchEnd, player1 = DEMO_P1, player2 = DEMO_P2 }) {
+  const [match, setMatch]           = useState(() => {
+    const s = createMatchState(player1, player2);
+    // Immediately push to App so spectators get the opening line right away
+    onMatchUpdate?.(s);
+    return s;
+  });
+  const [shotPicker, setShotPicker] = useState(null);
+  const [tab, setTab]               = useState("score");
+  const [flash, setFlash]           = useState(null);
+  const commentaryRef               = useRef(null);
 
   const gIdx   = match.currentGame - 1;
   const score  = match.scores[gIdx];
   const isLive = match.status === "live";
 
-  // Flash animation on point
+  // Update local state AND push to App so spectators receive every change
+  function commitState(next) {
+    setMatch(next);
+    onMatchUpdate?.(next);
+    // Match just finished — give scorer 3 sec to see result, then return to dashboard
+    if (next.status === "finished") {
+      setTimeout(() => onMatchEnd?.(), 3000);
+    }
+  }
+
   function triggerFlash(who) {
     setFlash(who);
     setTimeout(() => setFlash(null), 600);
   }
 
-  // Step 1: tap point button → open shot picker
   function handlePointTap(scorer) {
     if (!isLive) return;
     setShotPicker(scorer);
   }
 
-  // Step 2: pick shot type → commit point
   function handleShotPick(shotType) {
     const scorer = shotPicker;
     setShotPicker(null);
     const next = addPoint(match, { scorer, shotType });
     triggerFlash(scorer);
-    setMatch(next);
+    commitState(next);
   }
 
   function handleUndo() {
-    setMatch(undoPoint(match));
+    commitState(undoPoint(match));
   }
 
   const p1Stats = getPlayerStats(match.events, "p1");

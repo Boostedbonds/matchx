@@ -26,6 +26,13 @@ const GAMES_TO_WIN      = 2;   // best of 3
 // ─── Initial State Factory ────────────────────────────────────────────────────
 
 export function createMatchState(player1, player2) {
+  const openingLines = [
+    `🏸 Match underway! ${player1.name} vs ${player2.name} — Game 1. ${player1.name} to serve.`,
+    `⚡ We're live! ${player1.name} takes the first serve against ${player2.name}. Let's go!`,
+    `🎯 Game on! ${player1.name} vs ${player2.name}. Best of 3 games. ${player1.name} serving first.`,
+  ];
+  const opening = openingLines[Math.floor(Math.random() * openingLines.length)];
+
   return {
     player1,           // { name, init, club, rating }
     player2,
@@ -38,7 +45,7 @@ export function createMatchState(player1, player2) {
     gamesWon: { p1: 0, p2: 0 },
     server: "p1",       // who is currently serving
     events: [],         // full event log — source of truth for stats
-    commentary: [],     // generated commentary strings (latest first)
+    commentary: [opening], // ← match opens with an announcement immediately
     status: "live",     // "live" | "finished"
     winner: null,       // "p1" | "p2" | null
     startTime: Date.now(),
