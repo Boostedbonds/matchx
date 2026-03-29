@@ -10,7 +10,7 @@ function Setup({ onStartMatch, onBack }) {
   const handleChange = (key, value) => setPlayers({ ...players, [key]: value });
 
   return (
-    <div style={{ minHeight: "100vh", background: "#080a0f", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
+    <div style={{ minHeight: "100vh", background: "#080a0f", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 16px" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -38,10 +38,15 @@ function Setup({ onStartMatch, onBack }) {
           line-height: 1;
         }
 
+        @media (max-width: 600px) {
+          .setup-title { font-size: 44px; letter-spacing: 4px; }
+        }
+
         .setup-title span { color: #00ffc8; text-shadow: 0 0 30px rgba(0,255,200,0.5); }
 
         .match-type-row {
           display: flex; gap: 12px; margin-bottom: 32px; justify-content: center;
+          flex-wrap: wrap;
         }
 
         .type-btn {
@@ -67,13 +72,37 @@ function Setup({ onStartMatch, onBack }) {
         }
 
         .teams-wrap {
-          display: grid; grid-template-columns: 1fr 80px 1fr;
+          display: grid;
+          grid-template-columns: 1fr 80px 1fr;
           gap: 0; margin-bottom: 32px;
           background: #0d0f15;
           border: 1px solid rgba(255,255,255,0.06);
         }
 
-        .team-panel { padding: 32px; }
+        @media (max-width: 600px) {
+          .teams-wrap {
+            grid-template-columns: 1fr;
+          }
+          .vs-divider {
+            border-left: none !important;
+            border-right: none !important;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 12px 0 !important;
+            min-height: unset !important;
+          }
+          .vs-text {
+            writing-mode: horizontal-tb !important;
+            text-orientation: mixed !important;
+            font-size: 24px !important;
+          }
+        }
+
+        .team-panel { padding: 32px; min-width: 0; }
+
+        @media (max-width: 600px) {
+          .team-panel { padding: 20px 16px; }
+        }
 
         .vs-divider {
           display: flex; align-items: center; justify-content: center;
@@ -101,9 +130,11 @@ function Setup({ onStartMatch, onBack }) {
           background: rgba(255,255,255,0.02);
           border: 1px solid rgba(0,255,200,0.2);
           color: #fff;
-          font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 3px;
+          font-family: 'Bebas Neue', sans-serif;
+          font-size: 24px; letter-spacing: 3px;
           outline: none; margin-bottom: 20px;
           transition: all 0.2s;
+          min-width: 0;
         }
 
         .team-name-input:focus {
@@ -121,6 +152,7 @@ function Setup({ onStartMatch, onBack }) {
           font-weight: 500; letter-spacing: 1px;
           outline: none; margin-bottom: 10px;
           transition: all 0.2s;
+          min-width: 0;
         }
 
         .player-input:focus {
@@ -131,11 +163,20 @@ function Setup({ onStartMatch, onBack }) {
         .player-input::placeholder { color: rgba(255,255,255,0.2); }
 
         .options-row {
-          display: flex; gap: 16px; margin-bottom: 32px;
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px; margin-bottom: 32px;
+        }
+
+        @media (max-width: 600px) {
+          .options-row {
+            grid-template-columns: 1fr;
+            gap: 10px;
+          }
         }
 
         .option-card {
-          flex: 1; padding: 20px 24px;
+          padding: 20px 24px;
           background: #0d0f15;
           border: 1px solid rgba(255,255,255,0.06);
         }
