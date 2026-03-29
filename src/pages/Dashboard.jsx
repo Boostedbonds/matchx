@@ -15,10 +15,22 @@ function Dashboard({ user, onNav, onLogout }) {
     <div style={{ minHeight: "100vh", background: "#080a0f", color: "#fff", display: "flex" }}>
       <style>{`
         .main {
-          margin-left: 220px; flex: 1;
+          flex: 1;
           padding: 32px;
           overflow-y: auto;
           min-height: 100vh;
+          min-width: 0;
+        }
+
+        @media (min-width: 769px) {
+          .main { margin-left: 220px; }
+        }
+
+        @media (max-width: 768px) {
+          .main {
+            margin-left: 0;
+            padding: 16px 12px 80px 12px;
+          }
         }
 
         .top-bar {
@@ -29,6 +41,10 @@ function Dashboard({ user, onNav, onLogout }) {
         .page-title {
           font-family: 'Bebas Neue', sans-serif;
           font-size: 44px; letter-spacing: 4px; color: #fff;
+        }
+
+        @media (max-width: 768px) {
+          .page-title { font-size: 32px; letter-spacing: 2px; }
         }
 
         .live-badge {
@@ -56,12 +72,23 @@ function Dashboard({ user, onNav, onLogout }) {
           gap: 14px; margin-bottom: 24px;
         }
 
+        @media (max-width: 768px) {
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+          }
+        }
+
         .stat-card {
           background: #0d0f15;
           border: 1px solid rgba(255,255,255,0.06);
           padding: 20px;
           position: relative; overflow: hidden;
           transition: all 0.3s;
+        }
+
+        @media (max-width: 768px) {
+          .stat-card { padding: 14px; }
         }
 
         .stat-card::before {
@@ -86,6 +113,10 @@ function Dashboard({ user, onNav, onLogout }) {
           color: var(--accent, #00ffc8);
         }
 
+        @media (max-width: 768px) {
+          .stat-value { font-size: 28px; }
+        }
+
         .stat-sub {
           font-family: 'Rajdhani', sans-serif;
           font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 4px;
@@ -100,11 +131,21 @@ function Dashboard({ user, onNav, onLogout }) {
           gap: 20px;
         }
 
+        @media (max-width: 768px) {
+          .content-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
         .card {
           background: #0d0f15;
           border: 1px solid rgba(255,255,255,0.06);
           padding: 22px;
           margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+          .card { padding: 14px; }
         }
 
         .card:last-child { margin-bottom: 0; }
@@ -134,19 +175,21 @@ function Dashboard({ user, onNav, onLogout }) {
 
         .match-item:last-child { border-bottom: none; }
 
-        .match-teams { flex: 1; font-family: 'Rajdhani', sans-serif; }
-        .match-vs { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+        .match-teams { flex: 1; font-family: 'Rajdhani', sans-serif; min-width: 0; }
+        .match-vs { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .match-meta { font-size: 11px; letter-spacing: 1px; color: rgba(255,255,255,0.3); }
 
         .match-score {
           font-family: 'Bebas Neue', sans-serif;
-          font-size: 22px; letter-spacing: 2px; color: #00ffc8;
+          font-size: 18px; letter-spacing: 2px; color: #00ffc8;
+          white-space: nowrap;
         }
 
         .match-badge {
           font-family: 'Rajdhani', sans-serif;
           font-size: 10px; letter-spacing: 2px;
           padding: 3px 9px; font-weight: 700; text-transform: uppercase;
+          white-space: nowrap;
         }
 
         .badge-win { background: rgba(0,255,100,0.1); color: #00ff64; border: 1px solid rgba(0,255,100,0.2); }
@@ -173,7 +216,6 @@ function Dashboard({ user, onNav, onLogout }) {
         .action-icon { font-size: 22px; margin-bottom: 6px; }
         .action-label { font-size: 11px; letter-spacing: 2px; font-weight: 700; text-transform: uppercase; color: rgba(255,255,255,0.6); }
 
-        /* Online Players */
         .online-player-row {
           display: flex; align-items: center; gap: 10px;
           padding: 10px 0;
@@ -202,8 +244,8 @@ function Dashboard({ user, onNav, onLogout }) {
         .status-dot.away { background: #ffb800; }
         .status-dot.playing { background: #ff3250; animation: blink 1s infinite; }
 
-        .op-info { flex: 1; }
-        .op-name { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700; color: #fff; }
+        .op-info { flex: 1; min-width: 0; }
+        .op-name { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .op-status { font-family: 'Rajdhani', sans-serif; font-size: 10px; letter-spacing: 1px; }
         .op-status.online { color: #00ff64; }
         .op-status.away { color: #ffb800; }
@@ -219,6 +261,7 @@ function Dashboard({ user, onNav, onLogout }) {
           font-family: 'Rajdhani', sans-serif;
           font-size: 10px; font-weight: 700; letter-spacing: 2px;
           text-transform: uppercase; transition: all 0.2s;
+          white-space: nowrap;
         }
 
         .challenge-btn:hover { background: rgba(0,255,200,0.15); }
@@ -374,8 +417,8 @@ function Dashboard({ user, onNav, onLogout }) {
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
                   <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, color: i < 3 ? "#00ffc8" : "rgba(255,255,255,0.2)", width: 24, textAlign: "center" }}>{i + 1}</div>
                   <div className="op-avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{p.init}<div className={`status-dot ${p.playing ? "playing" : p.status}`} /></div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: "'Rajdhani'", fontSize: 13, fontWeight: 700, color: "#fff" }}>{p.name}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "'Rajdhani'", fontSize: 13, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                     <div style={{ fontFamily: "'Rajdhani'", fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: 1 }}>{p.club}</div>
                   </div>
                   <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, color: "#00ffc8" }}>{p.rating}</div>
