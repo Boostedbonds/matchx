@@ -26,6 +26,7 @@ function Tournament({ onNav, onLogout, user }) {
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         .main { margin-left: 240px; flex: 1; padding: 32px; }
+        @media (max-width: 768px) { .main { margin-left: 0; padding: 20px 16px 80px; } }
 
         .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
         .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 4px; color: #fff; }

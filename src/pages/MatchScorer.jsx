@@ -72,6 +72,7 @@ export default function MatchScorer({ onNav, onLogout, user, onMatchUpdate, onMa
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         .ms-main { margin-left: 220px; flex: 1; padding: 28px 32px; overflow-y: auto; min-height: 100vh; }
+        @media (max-width: 768px) { .ms-main { margin-left: 0; padding: 16px 14px 80px; } }
 
         /* ── Top bar ── */
         .ms-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }

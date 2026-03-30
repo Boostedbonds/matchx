@@ -31,20 +31,20 @@ function Players({ onNav, onLogout }) {
     <div style={{ minHeight: "100vh", background: "#080a0f", color: "#fff", display: "flex" }}>
       <style>{`
         .main { margin-left: 220px; flex: 1; padding: 32px; overflow-y: auto; }
+        @media (max-width: 768px) { .main { margin-left: 0; padding: 20px 16px 80px; } }
 
         .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 44px; letter-spacing: 4px; color: #fff; margin-bottom: 4px; }
         .page-sub { font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 3px; color: rgba(255,255,255,0.25); text-transform: uppercase; margin-bottom: 28px; }
 
-        .toolbar { display: flex; gap: 12px; margin-bottom: 24px; align-items: center; }
+        .toolbar { display: flex; gap: 12px; margin-bottom: 24px; align-items: center; flex-wrap: wrap; }
 
         .search-input {
-          flex: 1; padding: 12px 16px;
+          flex: 1; min-width: 180px; padding: 12px 16px;
           background: #0d0f15; border: 1px solid rgba(255,255,255,0.08);
           color: #fff; font-family: 'Rajdhani', sans-serif;
           font-size: 14px; font-weight: 500; letter-spacing: 1px; outline: none;
           transition: border 0.2s;
         }
-
         .search-input:focus { border-color: rgba(0,255,200,0.3); }
         .search-input::placeholder { color: rgba(255,255,255,0.2); }
 
@@ -56,30 +56,25 @@ function Players({ onNav, onLogout }) {
           font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
           transition: all 0.2s;
         }
-
         .filter-btn.active { background: rgba(0,255,200,0.08); border-color: rgba(0,255,200,0.3); color: #00ffc8; }
         .filter-btn:hover:not(.active) { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.15); }
 
         .players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+        @media (max-width: 480px) { .players-grid { grid-template-columns: 1fr; } }
 
         .player-card {
           background: #0d0f15; border: 1px solid rgba(255,255,255,0.06);
           padding: 20px; cursor: pointer;
           transition: all 0.2s; position: relative; overflow: hidden;
         }
-
         .player-card::before {
           content: ''; position: absolute; top: 0; left: 0;
-          width: 100%; height: 2px;
-          background: var(--sc, transparent);
-          transition: background 0.2s;
+          width: 100%; height: 2px; background: var(--sc, transparent); transition: background 0.2s;
         }
-
         .player-card:hover { border-color: rgba(0,255,200,0.2); transform: translateY(-2px); }
         .player-card:hover::before { background: #00ffc8; }
 
         .pc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-
         .pc-avatar {
           width: 48px; height: 48px; border-radius: 50%;
           background: linear-gradient(135deg, #00ffc8, #0088ff);
@@ -87,15 +82,12 @@ function Players({ onNav, onLogout }) {
           font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: #000;
           position: relative; flex-shrink: 0;
         }
-
         .pc-status-dot {
           position: absolute; bottom: 1px; right: 1px;
-          width: 11px; height: 11px; border-radius: 50%;
-          border: 2px solid #0d0f15;
+          width: 11px; height: 11px; border-radius: 50%; border: 2px solid #0d0f15;
         }
-
-        .pc-status-dot.online { background: #00ff64; }
-        .pc-status-dot.away { background: #ffb800; }
+        .pc-status-dot.online  { background: #00ff64; }
+        .pc-status-dot.away    { background: #ffb800; }
         .pc-status-dot.offline { background: rgba(255,255,255,0.2); }
         .pc-status-dot.playing { background: #ff3250; animation: blink 1s infinite; }
 
@@ -106,53 +98,38 @@ function Players({ onNav, onLogout }) {
 
         .pc-status-label {
           font-family: 'Rajdhani', sans-serif; font-size: 10px;
-          font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-          padding: 3px 8px;
+          font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 3px 8px;
         }
-
-        .pc-status-label.online { color: #00ff64; background: rgba(0,255,100,0.08); border: 1px solid rgba(0,255,100,0.15); }
-        .pc-status-label.away { color: #ffb800; background: rgba(255,184,0,0.08); border: 1px solid rgba(255,184,0,0.15); }
+        .pc-status-label.online  { color: #00ff64; background: rgba(0,255,100,0.08); border: 1px solid rgba(0,255,100,0.15); }
+        .pc-status-label.away    { color: #ffb800; background: rgba(255,184,0,0.08); border: 1px solid rgba(255,184,0,0.15); }
         .pc-status-label.offline { color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
         .pc-status-label.playing { color: #ff3250; background: rgba(255,50,80,0.08); border: 1px solid rgba(255,50,80,0.2); animation: blink 1s infinite; }
 
         .pc-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 14px; }
-
         .pc-stat { text-align: center; background: rgba(255,255,255,0.02); padding: 8px 4px; }
         .pc-stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: #00ffc8; line-height: 1; }
         .pc-stat-label { font-family: 'Rajdhani', sans-serif; font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,0.25); text-transform: uppercase; margin-top: 2px; }
 
         .challenge-btn-full {
           width: 100%; padding: 11px;
-          background: rgba(0,255,200,0.08);
-          border: 1px solid rgba(0,255,200,0.2);
+          background: rgba(0,255,200,0.08); border: 1px solid rgba(0,255,200,0.2);
           color: #00ffc8; cursor: pointer;
-          font-family: 'Bebas Neue', sans-serif;
-          font-size: 16px; letter-spacing: 3px;
+          font-family: 'Bebas Neue', sans-serif; font-size: 16px; letter-spacing: 3px;
           transition: all 0.2s;
         }
-
         .challenge-btn-full:hover { background: #00ffc8; color: #000; }
         .challenge-btn-full:disabled { opacity: 0.3; cursor: not-allowed; background: none; color: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.06); }
 
-        /* Modal */
         .modal-overlay {
-          position: fixed; inset: 0;
-          background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
-          z-index: 200; display: flex; align-items: center; justify-content: center;
+          position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
+          z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px;
         }
-
         .modal {
           background: #0d0f15; border: 1px solid rgba(0,255,200,0.15);
-          padding: 36px; width: 460px; position: relative;
+          padding: 36px; width: 100%; max-width: 460px; position: relative;
           box-shadow: 0 0 80px rgba(0,255,200,0.1);
         }
-
-        .modal-close {
-          position: absolute; top: 16px; right: 16px;
-          background: none; border: none; color: rgba(255,255,255,0.3);
-          font-size: 20px; cursor: pointer; line-height: 1;
-        }
-
+        .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: rgba(255,255,255,0.3); font-size: 20px; cursor: pointer; }
         .modal-close:hover { color: #fff; }
       `}</style>
 
@@ -194,13 +171,11 @@ function Players({ onNav, onLogout }) {
                   {p.playing ? "● Playing" : p.status === "online" ? "● Online" : p.status === "away" ? "● Away" : "Offline"}
                 </div>
               </div>
-
               <div className="pc-stats">
                 <div className="pc-stat"><div className="pc-stat-val">{p.rating}</div><div className="pc-stat-label">ELO</div></div>
                 <div className="pc-stat"><div className="pc-stat-val">{p.winRate}%</div><div className="pc-stat-label">Win Rate</div></div>
                 <div className="pc-stat"><div className="pc-stat-val">{p.wins}</div><div className="pc-stat-label">Wins</div></div>
               </div>
-
               <button
                 className="challenge-btn-full"
                 disabled={p.playing || p.status === "offline"}
@@ -213,12 +188,10 @@ function Players({ onNav, onLogout }) {
         </div>
       </div>
 
-      {/* Player Detail Modal */}
       {selected && (
         <div className="modal-overlay" onClick={() => setSelected(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
-
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
               <div style={{ width: 64, height: 64, borderRadius: "50%", background: "linear-gradient(135deg,#00ffc8,#0088ff)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue'", fontSize: 24, color: "#000", border: "2px solid rgba(0,255,200,0.3)" }}>
                 {selected.init}
@@ -228,23 +201,21 @@ function Players({ onNav, onLogout }) {
                 <div style={{ fontFamily: "'Rajdhani'", fontSize: 12, color: "rgba(255,255,255,0.35)", letterSpacing: 2 }}>🏸 {selected.club}</div>
               </div>
             </div>
-
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 }}>
               {[
                 { label: "ELO Rating", val: selected.rating, color: "#00ffc8" },
-                { label: "Win Rate", val: `${selected.winRate}%`, color: "#00ff64" },
-                { label: "Points", val: selected.points.toLocaleString(), color: "#ffb800" },
-                { label: "Wins", val: selected.wins, color: "#00ff64" },
-                { label: "Losses", val: selected.losses, color: "#ff3250" },
-                { label: "Streak", val: `${selected.streak}🔥`, color: "#ff3250" },
+                { label: "Win Rate",   val: `${selected.winRate}%`, color: "#00ff64" },
+                { label: "Points",     val: selected.points.toLocaleString(), color: "#ffb800" },
+                { label: "Wins",       val: selected.wins, color: "#00ff64" },
+                { label: "Losses",     val: selected.losses, color: "#ff3250" },
+                { label: "Streak",     val: `${selected.streak}🔥`, color: "#ff3250" },
               ].map((s, i) => (
-                <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", padding: "14px", textAlign: "center" }}>
+                <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", padding: 14, textAlign: "center" }}>
                   <div style={{ fontFamily: "'Bebas Neue'", fontSize: 26, color: s.color, lineHeight: 1 }}>{s.val}</div>
                   <div style={{ fontFamily: "'Rajdhani'", fontSize: 10, letterSpacing: 2, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginTop: 4 }}>{s.label}</div>
                 </div>
               ))}
             </div>
-
             <button
               style={{ width: "100%", padding: 14, background: "#00ffc8", border: "none", cursor: "pointer", fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 4, color: "#000", transition: "all 0.3s" }}
               disabled={selected.playing || selected.status === "offline"}
