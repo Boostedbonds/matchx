@@ -13,10 +13,56 @@ function Profile({ user, onNav, onLogout }) {
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         .main {
-          margin-left: 220px; flex: 1;
+          margin-left: 220px;
+          flex: 1;
           width: calc(100% - 220px);
-          min-height: 100vh; overflow-y: auto;
-          display: flex; flex-direction: column;
+          min-height: 100vh;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+        }
+
+        @media (max-width: 768px) {
+          .main {
+            margin-left: 0 !important;
+            width: 100% !important;
+          }
+          .sidebar-wrapper {
+            display: none !important;
+          }
+          .profile-hero {
+            padding: 20px 16px 0 !important;
+          }
+          .profile-header {
+            flex-wrap: wrap;
+            gap: 16px !important;
+            margin-bottom: 20px !important;
+          }
+          .profile-name {
+            font-size: 32px !important;
+            letter-spacing: 2px !important;
+          }
+          .profile-quick-stats {
+            gap: 16px !important;
+            flex-wrap: wrap;
+            width: 100%;
+          }
+          .pqs-val {
+            font-size: 24px !important;
+          }
+          .tabs {
+            margin: 0 -16px !important;
+            padding: 0 16px !important;
+          }
+          .content {
+            padding: 16px !important;
+          }
+          .section-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .badge-grid {
+            grid-template-columns: 1fr 1fr !important;
+          }
         }
 
         .profile-hero {
@@ -191,7 +237,9 @@ function Profile({ user, onNav, onLogout }) {
         .view-all-btn:hover { background: rgba(0,255,200,0.06); }
       `}</style>
 
-      <Sidebar active="profile" user={user} onNav={onNav} onLogout={onLogout} />
+      <div className="sidebar-wrapper">
+        <Sidebar active="profile" user={user} onNav={onNav} onLogout={onLogout} />
+      </div>
 
       <div className="main">
         {/* Hero */}
