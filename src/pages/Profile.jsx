@@ -14,6 +14,7 @@ function Profile({ user, onNav, onLogout }) {
 
         .main {
           margin-left: 220px; flex: 1;
+          width: calc(100% - 220px);
           min-height: 100vh; overflow-y: auto;
           display: flex; flex-direction: column;
         }
