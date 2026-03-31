@@ -32,7 +32,7 @@ function Tournament({ onNav, onLogout, user }) {
         .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 4px; color: #fff; }
         .page-sub { font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 3px; color: rgba(255,255,255,0.25); text-transform: uppercase; margin-top: 4px; }
 
-        .create-btn { padding: 14px 28px; background: #00ffc8; border: none; cursor: pointer; font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 3px; color: #000; transition: all 0.3s; }
+        .create-btn { padding: 14px 28px; background: #00ffc8; border: none; cursor: pointer; font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 3px; color: #000; transition: all 0.3s; white-space: nowrap; }
         .create-btn:hover { background: #fff; box-shadow: 0 0 30px rgba(0,255,200,0.4); }
 
         .tabs { display: flex; gap: 0; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 28px; }
@@ -47,11 +47,11 @@ function Tournament({ onNav, onLogout, user }) {
         .t-card:hover { border-color: rgba(0,255,200,0.2); transform: translateX(4px); }
 
         .t-name { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 2px; color: #fff; margin-bottom: 8px; }
-        .t-meta { display: flex; gap: 20px; }
+        .t-meta { display: flex; gap: 20px; flex-wrap: wrap; }
         .t-meta-item { font-family: 'Rajdhani', sans-serif; font-size: 12px; color: rgba(255,255,255,0.35); letter-spacing: 1px; display: flex; align-items: center; gap: 5px; }
 
         .t-right { text-align: right; }
-        .t-prize { font-family: 'Bebas Neue', sans-serif; font-size: 32px; color: #ffb800; letter-spacing: 1px; text-shadow: 0 0 15px rgba(255,184,0,0.3); }
+        .t-prize { font-family: 'Bebas Neue', sans-serif; font-size: 32px; color: #ffb800; letter-spacing: 1px; text-shadow: 0 0 15px rgba(255,184,0,0.3); white-space: nowrap; }
         .t-prize-label { font-family: 'Rajdhani', sans-serif; font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,0.25); text-transform: uppercase; margin-bottom: 12px; }
 
         .status-badge { display: inline-block; padding: 5px 14px; font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; border-radius: 2px; }
@@ -63,6 +63,17 @@ function Tournament({ onNav, onLogout, user }) {
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 
         .winner-tag { font-family: 'Rajdhani', sans-serif; font-size: 12px; color: #ffb800; margin-top: 8px; }
+
+        /* ── Mobile: stack card content vertically, show full prize ── */
+        @media (max-width: 768px) {
+          .t-card { grid-template-columns: 1fr; gap: 14px; padding: 20px 20px 20px 24px; }
+          .t-right { text-align: left; display: flex; align-items: center; gap: 16px; }
+          .t-prize-label { display: none; }
+          .t-prize { font-size: 28px; }
+          .page-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+          .create-btn { width: 100%; text-align: center; }
+          .t-name { font-size: 22px; }
+        }
       `}</style>
 
       <Sidebar active="tournament" user={user} onNav={onNav} onLogout={onLogout} />
