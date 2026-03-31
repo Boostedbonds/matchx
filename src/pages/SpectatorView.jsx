@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 
-// Simulated live matches
 const LIVE_MATCHES = [
   {
     id: 1,
@@ -82,7 +81,6 @@ function SpectatorView({ user, onNav, onLogout }) {
   const streamRef = useRef(null);
   const commEndRef = useRef(null);
 
-  // Simulate live score updates
   useEffect(() => {
     const interval = setInterval(() => {
       const rand = Math.random();
@@ -98,13 +96,11 @@ function SpectatorView({ user, onNav, onLogout }) {
           ...prev,
         ].slice(0, 20));
       }
-      // Simulate viewer count fluctuation
       setViewers(prev => prev + Math.floor(Math.random() * 3) - 1);
     }, 4000);
     return () => clearInterval(interval);
   }, [elapsed]);
 
-  // Timer
   useEffect(() => {
     const t = setInterval(() => setElapsed(e => e + 1), 1000);
     return () => clearInterval(t);
@@ -112,7 +108,6 @@ function SpectatorView({ user, onNav, onLogout }) {
 
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
-  // Start camera stream
   const startStream = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -145,13 +140,44 @@ function SpectatorView({ user, onNav, onLogout }) {
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
+        .sidebar-wrapper { flex-shrink: 0; }
+
         .main {
-          margin-left: 220px; flex: 1;
-          min-height: 100vh; overflow-y: auto;
+          margin-left: 220px;
+          flex: 1;
+          width: calc(100% - 220px);
+          min-height: 100vh;
+          overflow-y: auto;
           padding: 32px;
         }
 
-        /* Header */
+        @media (max-width: 768px) {
+          .sidebar-wrapper { display: none !important; }
+          .main {
+            margin-left: 0 !important;
+            width: 100% !important;
+            padding: 16px !important;
+          }
+          .spectator-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .match-selector {
+            flex-direction: column !important;
+          }
+          .score-big {
+            font-size: 64px !important;
+          }
+          .team-name-big {
+            font-size: 20px !important;
+          }
+          .page-title {
+            font-size: 30px !important;
+          }
+          .scoreboard-card {
+            padding: 20px !important;
+          }
+        }
+
         .page-header {
           display: flex; justify-content: space-between; align-items: center;
           margin-bottom: 28px;
@@ -179,7 +205,6 @@ function SpectatorView({ user, onNav, onLogout }) {
 
         @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
 
-        /* Match selector */
         .match-selector {
           display: flex; gap: 12px; margin-bottom: 24px;
         }
@@ -215,14 +240,12 @@ function SpectatorView({ user, onNav, onLogout }) {
           font-size: 24px; color: #ff3250; letter-spacing: 2px; margin-top: 4px;
         }
 
-        /* Main grid */
         .spectator-grid {
           display: grid;
           grid-template-columns: 1fr 340px;
           gap: 20px;
         }
 
-        /* Scoreboard */
         .scoreboard-card {
           background: linear-gradient(135deg, #0d1520, #080a0f);
           border: 1px solid rgba(0,255,200,0.12);
@@ -263,7 +286,6 @@ function SpectatorView({ user, onNav, onLogout }) {
 
         .eye-icon { font-size: 14px; }
 
-        /* Main score display */
         .score-display {
           display: grid; grid-template-columns: 1fr 80px 1fr;
           align-items: center; gap: 0;
@@ -312,7 +334,6 @@ function SpectatorView({ user, onNav, onLogout }) {
           font-size: 28px; color: rgba(255,255,255,0.1); letter-spacing: 4px;
         }
 
-        /* Game history dots */
         .game-history {
           display: flex; justify-content: center; gap: 8px;
           margin-top: 24px; padding-top: 20px;
@@ -328,7 +349,6 @@ function SpectatorView({ user, onNav, onLogout }) {
         .game-dot.lost { background: #ff3250; }
         .game-dot.current { background: rgba(255,255,255,0.3); animation: blink 1.5s infinite; }
 
-        /* Camera / Stream */
         .stream-card {
           background: #0d0f15;
           border: 1px solid rgba(255,255,255,0.06);
@@ -377,7 +397,6 @@ function SpectatorView({ user, onNav, onLogout }) {
         .stream-placeholder-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
         .stream-placeholder-text { font-size: 12px; letter-spacing: 2px; color: rgba(255,255,255,0.2); text-transform: uppercase; }
 
-        /* Overlay on video */
         .video-overlay {
           position: absolute; inset: 0; pointer-events: none;
           background: linear-gradient(0deg, rgba(0,0,0,0.6) 0%, transparent 40%);
@@ -418,7 +437,6 @@ function SpectatorView({ user, onNav, onLogout }) {
         .stream-btn.stop { background: rgba(255,50,80,0.08); border-color: rgba(255,50,80,0.25); color: #ff3250; }
         .stream-btn.stop:hover { background: rgba(255,50,80,0.2); }
 
-        /* Stats */
         .stats-card {
           background: #0d0f15;
           border: 1px solid rgba(255,255,255,0.06);
@@ -433,9 +451,7 @@ function SpectatorView({ user, onNav, onLogout }) {
           border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
-        .stat-bar-row {
-          margin-bottom: 14px;
-        }
+        .stat-bar-row { margin-bottom: 14px; }
 
         .stat-bar-header {
           display: flex; justify-content: space-between;
@@ -466,7 +482,6 @@ function SpectatorView({ user, onNav, onLogout }) {
           transition: width 1s ease;
         }
 
-        /* Commentary */
         .commentary-card {
           background: #0d0f15;
           border: 1px solid rgba(255,255,255,0.06);
@@ -519,7 +534,6 @@ function SpectatorView({ user, onNav, onLogout }) {
 
         .comm-mic { font-size: 12px; flex-shrink: 0; margin-top: 2px; }
 
-        /* Viewer count */
         .viewer-pulse {
           display: inline-flex; align-items: center; gap: 6px;
           font-family: 'Rajdhani', sans-serif; font-size: 12px;
@@ -533,10 +547,11 @@ function SpectatorView({ user, onNav, onLogout }) {
         }
       `}</style>
 
-      <Sidebar active="spectator" user={user} onNav={onNav} onLogout={onLogout} />
+      <div className="sidebar-wrapper">
+        <Sidebar active="spectator" user={user} onNav={onNav} onLogout={onLogout} />
+      </div>
 
       <div className="main">
-        {/* Header */}
         <div className="page-header">
           <div className="page-title">📡 Watch Live</div>
           <div className="live-indicator">
@@ -545,7 +560,6 @@ function SpectatorView({ user, onNav, onLogout }) {
           </div>
         </div>
 
-        {/* Match Selector */}
         <div className="match-selector">
           {LIVE_MATCHES.map(m => (
             <div
@@ -568,12 +582,8 @@ function SpectatorView({ user, onNav, onLogout }) {
           ))}
         </div>
 
-        {/* Main Grid */}
         <div className="spectator-grid">
-
-          {/* Left Column */}
           <div>
-            {/* Scoreboard */}
             <div className="scoreboard-card">
               <div className="sb-header">
                 <div className="sb-meta">🏸 {selectedMatch.type} · Game {selectedMatch.game}</div>
@@ -613,7 +623,6 @@ function SpectatorView({ user, onNav, onLogout }) {
               </div>
             </div>
 
-            {/* Camera Stream */}
             <div className="stream-card">
               <div className="stream-header">
                 <div className="stream-title">📷 Live Camera Feed</div>
@@ -668,9 +677,7 @@ function SpectatorView({ user, onNav, onLogout }) {
             </div>
           </div>
 
-          {/* Right Column */}
           <div>
-            {/* Live Stats */}
             <div className="stats-card">
               <div className="card-title">
                 Match Stats
@@ -716,7 +723,6 @@ function SpectatorView({ user, onNav, onLogout }) {
               </div>
             </div>
 
-            {/* Commentary */}
             <div className="commentary-card">
               <div className="comm-header">
                 <div className="card-title" style={{ margin: 0, padding: 0, border: "none" }}>🎙 Live Commentary</div>
