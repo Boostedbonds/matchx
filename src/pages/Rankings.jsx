@@ -21,13 +21,26 @@ function Rankings({ onNav, onLogout, user }) {
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        .main { margin-left: 240px; flex: 1; padding: 32px; }
-        @media (max-width: 768px) { .main { margin-left: 0; padding: 20px 16px 80px; } }
+        .sidebar-wrapper { flex-shrink: 0; }
+
+        .main { margin-left: 240px; flex: 1; width: calc(100% - 240px); padding: 32px; }
+
+        @media (max-width: 768px) {
+          .sidebar-wrapper { display: none !important; }
+          .main { margin-left: 0 !important; width: 100% !important; padding: 20px 16px 80px; }
+          .cat-tabs { flex-wrap: wrap !important; }
+          .cat-tab { flex: 1 1 calc(50% - 8px) !important; text-align: center; }
+          .table-header { display: none !important; }
+          .player-row {
+            grid-template-columns: 40px 1fr 80px 60px !important;
+          }
+          .num-col.losses-col, .points-col, .trend-col { display: none !important; }
+        }
 
         .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 4px; color: #fff; margin-bottom: 8px; }
         .page-sub { font-family: 'Rajdhani', sans-serif; font-size: 12px; letter-spacing: 3px; color: rgba(255,255,255,0.25); text-transform: uppercase; margin-bottom: 32px; }
 
-        .cat-tabs { display: flex; gap: 8px; margin-bottom: 28px; }
+        .cat-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
         .cat-tab { padding: 10px 24px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.35); cursor: pointer; font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; transition: all 0.2s; }
         .cat-tab.active { background: rgba(0,255,200,0.08); border-color: rgba(0,255,200,0.3); color: #00ffc8; }
         .cat-tab:hover:not(.active) { color: rgba(255,255,255,0.6); border-color: rgba(255,255,255,0.15); }
@@ -56,7 +69,9 @@ function Rankings({ onNav, onLogout, user }) {
         .trend-down { color: #ff3250; }
       `}</style>
 
-      <Sidebar active="rankings" user={user} onNav={onNav} onLogout={onLogout} />
+      <div className="sidebar-wrapper">
+        <Sidebar active="rankings" user={user} onNav={onNav} onLogout={onLogout} />
+      </div>
 
       <div className="main">
         <div className="page-title">🏅 Rankings</div>
@@ -83,7 +98,7 @@ function Rankings({ onNav, onLogout, user }) {
               </div>
               <div className="rating-col">{p.rating}</div>
               <div className="num-col" style={{ color: "#00ff64" }}>{p.wins}</div>
-              <div className="num-col" style={{ color: "#ff3250" }}>{p.losses}</div>
+              <div className="num-col losses-col" style={{ color: "#ff3250" }}>{p.losses}</div>
               <div className="points-col">{p.points.toLocaleString()}</div>
               <div className={`trend-col ${p.trend.startsWith("+") ? "trend-up" : "trend-down"}`}>
                 {p.trend.startsWith("+") ? "▲" : "▼"} {p.trend.replace(/[+-]/, "")}
