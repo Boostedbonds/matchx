@@ -1,13 +1,14 @@
 // src/utils/supabase.js
 // Single source of truth for all Supabase interactions.
-// Import { db } and call helpers — never call supabase directly from components.
+// Reads credentials from environment variables — never hardcode keys.
 
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL  = "https://afecdlzqmrotkoovazlc.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmZWNkbHpxbXJvdGtvb3ZhemxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MjEzNjUsImV4cCI6MjA5MDI5NzM2NX0.ZoJVVvCNnGqBRZgIgiPvSu5g4ZqYAEOMvOWljiIn-wg";
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
+
 
 // ─── Players ──────────────────────────────────────────────────────────────────
 
@@ -31,41 +32,54 @@ export async function fetchPlayer(id) {
 }
 
 export async function updatePlayerStats(playerId, { won, shotType }) {
-  // Fetch current stats first
   const player = await fetchPlayer(playerId);
   if (!player) return;
 
   const shotCol = `${shotType}_count`;
-  const updates = {
-    wins:    won ? player.wins + 1    : player.wins,
-    losses:  won ? player.losses      : player.losses + 1,
-    points:  won ? player.points + 100 : player.points + 20,
-    rating:  won ? player.rating + 15  : player.rating - 10,
-    [shotCol]: (player[shotCol] || 0) + 1,
-  };
+  const newWins    = won ? player.wins + 1    : player.wins;
+  const newLosses  = won ? player.losses      : player.losses + 1;
+  const newStreak  = won ? player.streak + 1  : 0;
+  const newBest    = Math.max(player.best_streak || 0, newStreak);
+  const newPoints  = won ? player.points + 100 : player.points + 20;
+  const newRating  = won ? player.rating + 15  : Math.max(800, player.rating - 10);
+  const total      = newWins + newLosses;
+  const newWinRate = total > 0 ? ((newWins / total) * 100).toFixed(2) : 0;
 
   const { error } = await supabase
     .from("players")
-    .update(updates)
+    .update({
+      wins:        newWins,
+      losses:      newLosses,
+      streak:      newStreak,
+      best_streak: newBest,
+      points:      newPoints,
+      rating:      newRating,
+      win_rate:    newWinRate,
+      [shotCol]:   (player[shotCol] || 0) + 1,
+    })
     .eq("id", playerId);
   if (error) throw error;
 }
 
+
 // ─── Matches ──────────────────────────────────────────────────────────────────
 
-export async function createMatch(player1, player2) {
+export async function createMatch(player1, player2, matchType = "singles") {
   const { data, error } = await supabase
     .from("matches")
     .insert({
-      player1_id:   player1.id   || null,
-      player2_id:   player2.id   || null,
-      player1_name: player1.name,
-      player2_name: player2.name,
-      player1_init: player1.init,
-      player2_init: player2.init,
-      player1_club: player1.club || "",
-      player2_club: player2.club || "",
-      status:       "live",
+      player1_id:     player1.id     || null,
+      player2_id:     player2.id     || null,
+      player1_name:   player1.name,
+      player2_name:   player2.name,
+      player1_init:   player1.init,
+      player2_init:   player2.init,
+      player1_club:   player1.club   || "",
+      player2_club:   player2.club   || "",
+      player1_rating: player1.rating || 1500,
+      player2_rating: player2.rating || 1500,
+      match_type:     matchType,
+      status:         "live",
     })
     .select()
     .single();
@@ -123,6 +137,17 @@ export async function fetchMatch(matchId) {
   return data;
 }
 
+export async function fetchMatchByShareCode(code) {
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("share_code", code.toUpperCase())
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+
 // ─── Match Events ─────────────────────────────────────────────────────────────
 
 export async function saveEvent(matchId, event) {
@@ -154,6 +179,7 @@ export async function fetchEvents(matchId) {
   return data;
 }
 
+
 // ─── Commentary ───────────────────────────────────────────────────────────────
 
 export async function saveCommentaryLine(matchId, line) {
@@ -174,33 +200,44 @@ export async function fetchCommentary(matchId) {
   return data.map(r => r.line);
 }
 
+
 // ─── Real-time listeners ──────────────────────────────────────────────────────
 
-// Listen to a specific live match — fires whenever scores/status changes
+// Listen to score/status changes on a specific match
 export function listenToMatch(matchId, callback) {
   return supabase
     .channel(`match-${matchId}`)
     .on(
       "postgres_changes",
-      { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchId}` },
+      {
+        event:  "UPDATE",
+        schema: "public",
+        table:  "matches",
+        filter: `id=eq.${matchId}`,
+      },
       (payload) => callback(payload.new)
     )
     .subscribe();
 }
 
-// Listen to commentary lines for a match — fires on every new line
+// Listen to new commentary lines for a match
 export function listenToCommentary(matchId, callback) {
   return supabase
     .channel(`commentary-${matchId}`)
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "commentary", filter: `match_id=eq.${matchId}` },
+      {
+        event:  "INSERT",
+        schema: "public",
+        table:  "commentary",
+        filter: `match_id=eq.${matchId}`,
+      },
       (payload) => callback(payload.new.line)
     )
     .subscribe();
 }
 
-// Listen to all live matches — for dashboard / spectator lobby
+// Listen to all live matches — for spectator lobby / dashboard
 export function listenToLiveMatches(callback) {
   return supabase
     .channel("live-matches")
@@ -212,7 +249,7 @@ export function listenToLiveMatches(callback) {
     .subscribe();
 }
 
-// Unsubscribe a channel
+// Unsubscribe a channel when component unmounts
 export function unsubscribe(channel) {
   if (channel) supabase.removeChannel(channel);
 }
