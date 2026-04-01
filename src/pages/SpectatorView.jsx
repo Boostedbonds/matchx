@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { supabase } from "../services/supabase";
 import Sidebar from "../components/Sidebar";
 
 const COMMENTARY_POOL = [
@@ -32,32 +31,53 @@ function SpectatorView({ user, onNav, onLogout }) {
   const streamRef = useRef(null);
   const prevScoreRef = useRef({ playerA: 0, playerB: 0 });
 
-  // Subscribe to Firestore live match in real-time
+  // Subscribe to Supabase live match in real-time
   useEffect(() => {
-    const matchRef = doc(db, "matches", "live");
-    const unsub = onSnapshot(matchRef, (snap) => {
-      if (!snap.exists()) return;
-      const data = snap.data();
-      setLiveMatch(data);
-
-      // Auto-generate commentary on score change
-      const prev = prevScoreRef.current;
-      const scoredA = data.playerA > prev.playerA;
-      const scoredB = data.playerB > prev.playerB;
-      if (scoredA || scoredB) {
-        const msg = COMMENTARY_POOL[Math.floor(Math.random() * COMMENTARY_POOL.length)];
-        const now = new Date();
-        const timeStr = `${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-        const team = scoredA ? (data.teamAName || "Team A") : (data.teamBName || "Team B");
-        setCommentary(prev => [
-          { text: `${team} scores! ${msg}`, time: timeStr, highlight: Math.random() > 0.6 },
-          ...prev,
-        ].slice(0, 20));
-        setViewers(v => v + Math.floor(Math.random() * 2));
-        prevScoreRef.current = { playerA: data.playerA, playerB: data.playerB };
+    // Initial fetch
+    const fetchLiveMatch = async () => {
+      const { data, error } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("status", "live")
+        .single();
+      if (!error && data) {
+        setLiveMatch(data);
+        prevScoreRef.current = { playerA: data.playerA ?? 0, playerB: data.playerB ?? 0 };
       }
-    });
-    return () => unsub();
+    };
+    fetchLiveMatch();
+
+    // Realtime subscription
+    const channel = supabase
+      .channel("live-match-spectator")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "matches", filter: "status=eq.live" },
+        (payload) => {
+          const data = payload.new;
+          if (!data) return;
+          setLiveMatch(data);
+
+          const prev = prevScoreRef.current;
+          const scoredA = (data.playerA ?? 0) > prev.playerA;
+          const scoredB = (data.playerB ?? 0) > prev.playerB;
+          if (scoredA || scoredB) {
+            const msg = COMMENTARY_POOL[Math.floor(Math.random() * COMMENTARY_POOL.length)];
+            const now = new Date();
+            const timeStr = `${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+            const team = scoredA ? (data.teamAName || "Team A") : (data.teamBName || "Team B");
+            setCommentary(prev => [
+              { text: `${team} scores! ${msg}`, time: timeStr, highlight: Math.random() > 0.6 },
+              ...prev,
+            ].slice(0, 20));
+            setViewers(v => v + Math.floor(Math.random() * 2));
+            prevScoreRef.current = { playerA: data.playerA ?? 0, playerB: data.playerB ?? 0 };
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }, []);
 
   // Timer
@@ -106,26 +126,27 @@ function SpectatorView({ user, onNav, onLogout }) {
           .team-name-big { font-size: 20px !important; }
           .page-title { font-size: 30px !important; }
           .scoreboard-card { padding: 20px !important; }
+          .score-display { grid-template-columns: 1fr 60px 1fr !important; }
         }
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
         .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 44px; letter-spacing: 4px; color: #fff; }
         .live-indicator { display: flex; align-items: center; gap: 8px; background: rgba(255,50,80,0.12); border: 1px solid rgba(255,50,80,0.35); padding: 8px 18px; font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 3px; color: #ff3250; text-transform: uppercase; }
-        .live-dot { width: 8px; height: 8px; background: #ff3250; border-radius: 50%; animation: blink 1s infinite; }
+        .live-dot { width: 8px; height: 8px; background: #ff3250; border-radius: 50%; animation: blink 1s infinite; flex-shrink: 0; }
         @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
         .no-match { text-align: center; padding: 80px 20px; font-family: 'Rajdhani', sans-serif; }
         .no-match-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
         .no-match-text { font-size: 14px; letter-spacing: 3px; color: rgba(255,255,255,0.2); text-transform: uppercase; }
-        .spectator-grid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
+        .spectator-grid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
         .scoreboard-card { background: linear-gradient(135deg, #0d1520, #080a0f); border: 1px solid rgba(0,255,200,0.12); padding: 32px; position: relative; overflow: hidden; margin-bottom: 20px; }
         .scoreboard-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(0,255,200,0.05), transparent 60%); pointer-events: none; }
-        .sb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+        .sb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 8px; }
         .sb-meta { font-family: 'Rajdhani', sans-serif; font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: rgba(255,255,255,0.25); }
         .sb-timer { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: #00ffc8; letter-spacing: 3px; }
         .sb-viewers { display: flex; align-items: center; gap: 6px; font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.4); }
         .score-display { display: grid; grid-template-columns: 1fr 80px 1fr; align-items: center; }
-        .team-block { text-align: center; }
+        .team-block { text-align: center; min-width: 0; }
         .team-block.leading .score-big { color: #00ffc8; text-shadow: 0 0 40px rgba(0,255,200,0.5); }
-        .team-name-big { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 3px; color: #fff; margin-bottom: 4px; }
+        .team-name-big { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 3px; color: #fff; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .score-big { font-family: 'Bebas Neue', sans-serif; font-size: 100px; line-height: 1; color: rgba(255,255,255,0.5); transition: all 0.4s; }
         .game-indicator { text-align: center; }
         .vs-text { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: rgba(255,255,255,0.1); letter-spacing: 4px; }
@@ -199,7 +220,6 @@ function SpectatorView({ user, onNav, onLogout }) {
         ) : (
           <div className="spectator-grid">
 
-            {/* Left: Scoreboard + Camera */}
             <div>
               <div className="scoreboard-card">
                 <div className="sb-header">
@@ -239,7 +259,6 @@ function SpectatorView({ user, onNav, onLogout }) {
                 )}
               </div>
 
-              {/* Camera */}
               <div className="stream-card">
                 <div className="stream-header">
                   <div className="stream-title">📷 Live Camera Feed</div>
@@ -284,7 +303,6 @@ function SpectatorView({ user, onNav, onLogout }) {
               </div>
             </div>
 
-            {/* Right: Score summary + Commentary */}
             <div>
               <div className="score-card">
                 <div className="card-title">
