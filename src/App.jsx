@@ -1,127 +1,160 @@
 import { useState } from "react";
-import Landing from "./pages/Landing";
-import Setup from "./pages/Setup";
-import MatchScene from "./pages/MatchScene";
-import Dashboard from "./pages/Dashboard";
-import Profile from "./pages/Profile";
-import Rankings from "./pages/Rankings";
-import Tournament from "./pages/Tournament";
-import Badges from "./pages/Badges";
-import Players from "./pages/Players";
+import Landing       from "./pages/Landing";
+import Dashboard     from "./pages/Dashboard";
+import RoleSelect    from "./pages/RoleSelect";
+import PlayerSelect  from "./pages/PlayerSelect";
+import MatchScorer   from "./pages/MatchScorer";
 import SpectatorView from "./pages/SpectatorView";
-import RoleSelector from "./pages/RoleSelector";
+import Tournament    from "./pages/Tournament";
+import Rankings      from "./pages/Rankings";
+import Players       from "./pages/Players";
+import Admin         from "./pages/Admin";
 
-const INITIAL_USER = {
-  name: "Vishal Kataria",
-  club: "Smash FC",
-  avatar: "VK",
-  rating: 1847,
-  points: 3240,
-  rank: 12,
-  wins: 34,
-  losses: 8,
+// ─── Demo session user ────────────────────────────────────────────────────────
+const DEMO_USER = {
+  name:    "Dev Patel",
+  init:    "DP",
+  club:    "Court Kings",
+  rating:  1847,
+  wins:    34,
+  losses:  8,
+  points:  6540,
   winRate: 81,
-  streak: 5,
-  badges: ["🏆 Champion", "🔥 Hot Streak", "⚡ Speed Demon"],
+  streak:  4,
 };
 
-function App() {
-  const [page, setPage] = useState("landing");
-  const [matchData, setMatchData] = useState(null);
-  const [user, setUser] = useState(INITIAL_USER);
-  const [roleContext, setRoleContext] = useState("match");
+// ─── Match flow stages ────────────────────────────────────────────────────────
+//
+//  null            → no active match, normal navigation
+//  "pre"           → RoleSelect   — scorer or spectator?
+//  "playerselect"  → PlayerSelect — pick P1 and P2  (scorer only)
+//  "scoring"       → MatchScorer  — live scoring controls
+//  "watching"      → SpectatorView — read-only live feed
+//
+// loggedIn persists for the whole session — no re-login between matches.
 
-  const handleLogout = () => {
-    setPage("landing");
-    setUser(INITIAL_USER);
-  };
+export default function App() {
+  const [loggedIn,   setLoggedIn]   = useState(false);
+  const [page,       setPage]       = useState("dashboard");
+  const [matchFlow,  setMatchFlow]  = useState(null);
+  const [liveMatch,  setLiveMatch]  = useState(null);
 
-  const handleMatchComplete = (result) => {
-    setUser((prev) => {
-      const won = result === "win";
-      const newWins = won ? prev.wins + 1 : prev.wins;
-      const newLosses = won ? prev.losses : prev.losses + 1;
-      const total = newWins + newLosses;
-      const newWinRate = Math.round((newWins / total) * 100);
-      const newStreak = won ? prev.streak + 1 : 0;
-      const newPoints = prev.points + (won ? 120 : 30);
-      const newRating = prev.rating + (won ? 25 : -15);
+  // Selected players carried from PlayerSelect → MatchScorer
+  const [matchP1,    setMatchP1]    = useState(null);
+  const [matchP2,    setMatchP2]    = useState(null);
 
-      const newBadges = [...prev.badges];
-      const add = (b) => { if (!newBadges.includes(b)) newBadges.push(b); };
-      if (newWins >= 1)   add("🏅 First Blood");
-      if (newWins >= 10)  add("⚡ Speed Demon");
-      if (newStreak >= 3) add("🔥 Hot Streak");
-      if (newWins >= 25)  add("🎯 Sharpshooter");
-      if (newWins >= 50)  add("🚀 Legend");
-      if (newPoints >= 5000) add("🌟 Rising Star");
+  // ── One-time login ──────────────────────────────────────────────────────────
+  if (!loggedIn) {
+    return <Landing onStart={() => setLoggedIn(true)} />;
+  }
 
-      return { ...prev, wins: newWins, losses: newLosses, winRate: newWinRate, streak: newStreak, points: newPoints, rating: newRating, badges: newBadges };
-    });
-    setPage("dashboard");
-  };
-
-  // Intercept setup & spectator to show RoleSelector first
-  const handleNav = (id) => {
-    if (id === "setup") {
-      setRoleContext("match");
-      setPage("role-select");
-      return;
-    }
-    if (id === "spectator") {
-      setRoleContext("watch");
-      setPage("role-select");
-      return;
-    }
-    setPage(id);
-  };
-
-  const navProps = { onNav: handleNav, onLogout: handleLogout };
-
-  if (page === "landing")   return <Landing onStart={() => setPage("dashboard")} />;
-
-  if (page === "role-select") {
+  // ── Stage: Role Select ──────────────────────────────────────────────────────
+  if (matchFlow === "pre") {
     return (
-      <RoleSelector
-        context={roleContext}
-        onBack={() => setPage("dashboard")}
-        onSelectScorer={() => {
-          if (roleContext === "match") setPage("setup");
-          else setPage("match");
+      <RoleSelect
+        onSelect={(role) => {
+          if (role === "scorer") {
+            // Scorer goes to player selection first
+            setMatchFlow("playerselect");
+          } else {
+            // Spectator goes straight to live watch
+            setMatchFlow("watching");
+            setPage("live");
+          }
         }}
-        onSelectSpectator={() => setPage("spectator")}
+        onCancel={() => {
+          setMatchFlow(null);
+          setPage("dashboard");
+        }}
       />
     );
   }
 
-  if (page === "setup") {
+  // ── Stage: Player Select (scorer only) ─────────────────────────────────────
+  if (matchFlow === "playerselect") {
     return (
-      <Setup
-        onStartMatch={(data) => { setMatchData(data); setPage("match"); }}
-        onBack={() => setPage("dashboard")}
+      <PlayerSelect
+        onStart={(p1, p2) => {
+          setMatchP1(p1);
+          setMatchP2(p2);
+          setMatchFlow("scoring");
+          setPage("setup");
+        }}
+        onCancel={() => {
+          // Go back to role select
+          setMatchFlow("pre");
+        }}
       />
     );
   }
 
-  if (page === "match") {
+  // ── Stage: Scorer (live controls) ──────────────────────────────────────────
+  if (matchFlow === "scoring" && page === "setup") {
     return (
-      <MatchScene
-        matchData={matchData}
-        onBack={() => setPage("dashboard")}
-        onMatchComplete={handleMatchComplete}
+      <MatchScorer
+        user={DEMO_USER}
         role="scorer"
+        player1={matchP1}
+        player2={matchP2}
+        onNav={setPage}
+        onLogout={() => setLoggedIn(false)}
+        onMatchUpdate={(state) => setLiveMatch(state)}
+        onMatchEnd={() => {
+          setMatchFlow(null);
+          setMatchP1(null);
+          setMatchP2(null);
+          setPage("dashboard");
+        }}
       />
     );
   }
 
-  if (page === "spectator")  return <SpectatorView user={user} {...navProps} />;
-  if (page === "profile")    return <Profile user={user} {...navProps} />;
-  if (page === "rankings")   return <Rankings {...navProps} />;
-  if (page === "tournament") return <Tournament {...navProps} />;
-  if (page === "badges")     return <Badges user={user} {...navProps} />;
-  if (page === "players")    return <Players {...navProps} />;
+  // ── Stage: Spectator (read-only) ────────────────────────────────────────────
+  if (matchFlow === "watching" && page === "live") {
+    return (
+      <SpectatorView
+        match={liveMatch}
+        onNav={(p) => {
+          setMatchFlow(null);
+          setPage(p);
+        }}
+      />
+    );
+  }
 
-  return <Dashboard user={user} {...navProps} />;
+  // ── Normal app navigation (between matches) ─────────────────────────────────
+  function handleNav(p) {
+    if (p === "setup") {
+      setMatchFlow("pre"); // always go through role select → player select
+    } else {
+      setPage(p);
+    }
+  }
+
+  const sharedProps = {
+    user:     DEMO_USER,
+    onNav:    handleNav,
+    onLogout: () => setLoggedIn(false),
+  };
+
+  switch (page) {
+    case "tournament": return <Tournament {...sharedProps} />;
+    case "rankings":   return <Rankings   {...sharedProps} />;
+    case "players":    return <Players    {...sharedProps} />;
+    case "admin":      return <Admin onBack={() => setPage("dashboard")} />;
+    case "dashboard":
+    default:
+      return (
+        <Dashboard
+          {...sharedProps}
+          liveMatch={liveMatch}
+          onWatchLive={() => {
+            if (liveMatch) {
+              setMatchFlow("watching");
+              setPage("live");
+            }
+          }}
+        />
+      );
+  }
 }
-
-export default App;
