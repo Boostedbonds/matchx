@@ -3,7 +3,7 @@
 // Fetches players from Supabase. Falls back to hardcoded list if offline.
 
 import { useState, useEffect } from "react";
-import { fetchPlayers } from "../utils/supabase";
+import { fetchPlayers } from "../services/supabase";
 
 const FALLBACK_PLAYERS = [
   { id: null, name: "Rahul Sharma", init: "RS", club: "Eagles FC",   rating: 2104 },

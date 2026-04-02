@@ -8,7 +8,7 @@ function MatchScene({ matchData, onBack, onMatchComplete }) {
   const mountRef = useRef(null);
   const init = useMatchStore((s) => s.init);
 
-  // Init store with real team names + start Firestore sync
+  // Init Supabase store with real team names
   useEffect(() => {
     init(
       matchData?.teamA || "Team A",

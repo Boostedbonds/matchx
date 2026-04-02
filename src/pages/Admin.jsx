@@ -8,7 +8,7 @@ import {
   fetchPlayers,
   fetchEvents,
   fetchCommentary,
-} from "../utils/supabase";
+} from "../services/supabase";
 
 export default function Admin({ onBack }) {
   const [tab,      setTab]      = useState("matches");

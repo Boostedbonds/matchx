@@ -14,7 +14,7 @@ const SHOT_TYPES = [
 ];
 
 function OverlayUI({ matchData, onBack, onMatchComplete }) {
-  const { playerA, playerB, winner, scoreA, scoreB, reset } = useMatchStore();
+  const { playerA, playerB, winner, scoreA, scoreB, reset, undo } = useMatchStore();
 
   const [selectedShot, setSelectedShot] = useState(null);
   const [scoringTeam,  setScoringTeam]  = useState(null);
@@ -35,8 +35,12 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
   };
 
   const commitPoint = (team, playerName) => {
-    const fn       = team === "A" ? scoreA : scoreB;
+    // Save current scores to undo stack BEFORE scoring
+    setUndoStack(prev => [...prev, { playerA, playerB }]);
+
+    const fn = team === "A" ? scoreA : scoreB;
     fn();
+
     const sA = team === "A" ? playerA + 1 : playerA;
     const sB = team === "B" ? playerB + 1 : playerB;
     const shot     = selectedShot || { label: "—", icon: "🏸" };
@@ -55,7 +59,6 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
     };
     setLastPoint(entry);
     setPointLog(prev => [entry, ...prev]);
-    setUndoStack(prev => [...prev, { playerA, playerB }]);
     setSelectedShot(null);
     setScoringTeam(null);
     setTimeout(() => setLastPoint(null), 3000);
@@ -70,18 +73,28 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
     }
   };
 
+  const handleUndo = () => {
+    if (!undoStack.length) return;
+    const prev = undoStack[undoStack.length - 1];
+    undo(prev.playerA, prev.playerB);   // writes back to Supabase
+    setUndoStack(s => s.slice(0, -1));
+    setPointLog(s => s.slice(1));
+  };
+
   const handleReset = () => {
-    reset(); setPointLog([]); setUndoStack([]);
+    reset();
+    setPointLog([]); setUndoStack([]);
     setSelectedShot(null); setScoringTeam(null);
   };
 
   const handleNextGame = () => {
-    reset(); setGame(g => g + 1);
+    reset();
+    setGame(g => g + 1);
     setPointLog([]); setUndoStack([]);
   };
 
-  const isDeuce    = playerA >= 20 && playerB >= 20 && playerA === playerB;
-  const isMatchPt  = !isDeuce && (
+  const isDeuce   = playerA >= 20 && playerB >= 20 && playerA === playerB;
+  const isMatchPt = !isDeuce && (
     (playerA >= 20 && playerA - playerB === 1) ||
     (playerB >= 20 && playerB - playerA === 1)
   );
@@ -102,7 +115,6 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
         .live-dot { width:7px; height:7px; background:#ff3250; border-radius:50%; animation:blink 1s infinite; }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .live-txt { font-size:10px; letter-spacing:3px; color:#ff3250; font-weight:700; }
-
         .scoreboard { display:flex; align-items:stretch; background:#0d0f15; border-bottom:1px solid rgba(0,255,200,0.15); flex-shrink:0; }
         .team-col { flex:1; padding:12px 14px; text-align:center; position:relative; min-width:0; transition:background 0.3s; }
         .team-col.leading { background:rgba(0,255,200,0.04); }
@@ -115,14 +127,11 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
         .mid-vs { font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:3px; color:rgba(255,255,255,0.15); }
         .mid-game { font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.25); text-transform:uppercase; }
         .mid-gnum { font-family:'Bebas Neue',sans-serif; font-size:22px; color:#fff; line-height:1; }
-
         .status-bar { text-align:center; padding:4px 8px; font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; flex-shrink:0; min-height:24px; }
         .s-deuce { background:rgba(255,184,0,0.15); color:#ffb800; }
         .s-mp { background:rgba(255,50,80,0.15); color:#ff3250; animation:blink 0.7s infinite; }
-
         .scorer-panel { flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:10px; }
         .sec-title { font-size:9px; letter-spacing:3px; text-transform:uppercase; color:rgba(255,255,255,0.25); font-weight:700; margin-bottom:5px; }
-
         .shot-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
         .shot-btn { padding:9px 4px; text-align:center; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07); cursor:pointer; transition:all 0.15s; }
         .shot-btn:hover { background:rgba(0,255,200,0.06); border-color:rgba(0,255,200,0.2); }
@@ -130,11 +139,9 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
         .shot-icon { font-size:17px; margin-bottom:2px; }
         .shot-label { font-size:10px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.6); }
         .shot-btn.sel .shot-label { color:#00ffc8; }
-
         .sel-bar { padding:7px 10px; background:rgba(0,255,200,0.08); border:1px solid rgba(0,255,200,0.25); display:flex; align-items:center; gap:8px; }
         .sel-bar-txt { font-size:11px; font-weight:700; letter-spacing:2px; color:#00ffc8; text-transform:uppercase; flex:1; }
         .sel-bar-clr { background:none; border:none; color:rgba(255,255,255,0.3); cursor:pointer; font-size:13px; padding:0; }
-
         .point-btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
         .pt-btn { padding:14px 10px; text-align:center; cursor:pointer; border:1px solid rgba(255,255,255,0.08); transition:all 0.15s; background:rgba(255,255,255,0.02); }
         .pt-btn:active { transform:scale(0.97); }
@@ -144,13 +151,11 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
         .pt-A:hover { background:rgba(0,255,200,0.1); border-color:#00ffc8; }
         .pt-B { border-color:rgba(255,50,80,0.25); }
         .pt-B:hover { background:rgba(255,50,80,0.1); border-color:#ff3250; }
-
         .picker-wrap { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07); padding:10px; }
         .picker-title { font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.3); text-transform:uppercase; margin-bottom:8px; }
         .picker-btns { display:flex; gap:8px; flex-wrap:wrap; }
         .picker-btn { padding:8px 16px; cursor:pointer; background:rgba(0,255,200,0.07); border:1px solid rgba(0,255,200,0.2); color:#00ffc8; font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:700; letter-spacing:1px; transition:all 0.15s; }
         .picker-btn:hover { background:#00ffc8; color:#000; }
-
         .ctrl-row { display:flex; gap:8px; }
         .ctrl-btn { flex:1; padding:10px; text-align:center; cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; transition:all 0.2s; border:none; }
         .c-undo { background:rgba(255,184,0,0.1); color:#ffb800; border:1px solid rgba(255,184,0,0.2); }
@@ -160,7 +165,6 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
         .c-next:hover { background:rgba(0,136,255,0.2); }
         .c-reset { background:rgba(255,50,80,0.1); color:#ff3250; border:1px solid rgba(255,50,80,0.2); }
         .c-reset:hover { background:rgba(255,50,80,0.2); }
-
         .point-log { flex-shrink:0; max-height:190px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.05); }
         .log-hdr { display:flex; align-items:center; gap:10px; padding:7px 12px; position:sticky; top:0; background:#080a0f; z-index:1; }
         .log-lbl { font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.25); text-transform:uppercase; font-weight:700; white-space:nowrap; }
@@ -177,18 +181,15 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
         .ls-A { color:#00ffc8; } .ls-B { color:#ff3250; }
         .log-time { font-size:9px; color:rgba(255,255,255,0.2); flex-shrink:0; letter-spacing:1px; }
         .log-empty { padding:10px 12px; font-size:11px; color:rgba(255,255,255,0.2); letter-spacing:1px; }
-
         .flash-wrap { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(8,10,15,0.98); border:1px solid rgba(0,255,200,0.5); box-shadow:0 0 60px rgba(0,255,200,0.2); padding:22px 32px; text-align:center; z-index:100; pointer-events:none; animation:flashIn 0.25s ease; min-width:240px; }
         @keyframes flashIn { from{opacity:0;transform:translate(-50%,-60%) scale(0.9)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
         .f-icon { font-size:38px; margin-bottom:5px; }
         .f-player { font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:3px; color:#00ffc8; }
         .f-shot { font-size:11px; letter-spacing:2px; color:rgba(255,255,255,0.4); text-transform:uppercase; margin-top:3px; }
         .f-score { font-family:'Bebas Neue',sans-serif; font-size:20px; color:#fff; margin-top:6px; letter-spacing:2px; }
-
         .cam-pip { position:fixed; top:58px; right:10px; width:150px; height:90px; background:#000; border:1px solid rgba(0,255,200,0.3); z-index:50; overflow:hidden; }
         .cam-pip video { width:100%; height:100%; object-fit:cover; }
         .cam-close { position:absolute; top:3px; right:5px; background:none; border:none; color:#fff; cursor:pointer; font-size:13px; z-index:51; }
-
         .winner-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.92); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; animation:fadeIn 0.5s ease; padding:20px; }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         .w-trophy { font-size:64px; margin-bottom:10px; }
@@ -238,8 +239,6 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
 
       {/* SCORER PANEL */}
       <div className="scorer-panel">
-
-        {/* Shot type */}
         <div>
           <div className="sec-title">1 · Shot type (optional)</div>
           <div className="shot-grid">
@@ -264,7 +263,6 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
           </div>
         )}
 
-        {/* Award point */}
         <div>
           <div className="sec-title">2 · Award point to</div>
           <div className="point-btns">
@@ -283,7 +281,6 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
           </div>
         </div>
 
-        {/* Player picker (doubles) */}
         {scoringTeam && getPlayers(scoringTeam).length > 1 && (
           <div className="picker-wrap">
             <div className="picker-title">
@@ -297,19 +294,10 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
           </div>
         )}
 
-        {/* Controls */}
         <div className="ctrl-row">
-          <button
-            className="ctrl-btn c-undo"
-            disabled={undoStack.length === 0}
-            onClick={() => {
-              if (!undoStack.length) return;
-              const prev = undoStack[undoStack.length - 1];
-              useMatchStore.setState({ playerA: prev.playerA, playerB: prev.playerB, winner: "" });
-              setUndoStack(s => s.slice(0, -1));
-              setPointLog(s => s.slice(1));
-            }}
-          >↩ Undo</button>
+          <button className="ctrl-btn c-undo" disabled={undoStack.length === 0} onClick={handleUndo}>
+            ↩ Undo
+          </button>
           <button className="ctrl-btn c-next" onClick={handleNextGame}>Next Game →</button>
           <button className="ctrl-btn c-reset" onClick={handleReset}>Reset</button>
         </div>
@@ -338,7 +326,6 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
         }
       </div>
 
-      {/* LAST POINT FLASH */}
       {lastPoint && (
         <div className="flash-wrap">
           <div className="f-icon">{lastPoint.icon}</div>
@@ -348,7 +335,6 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
         </div>
       )}
 
-      {/* OPTIONAL CAMERA PIP */}
       {showCamera && (
         <div className="cam-pip">
           <button className="cam-close" onClick={() => setShowCamera(false)}>✕</button>
@@ -362,7 +348,6 @@ function OverlayUI({ matchData, onBack, onMatchComplete }) {
         </div>
       )}
 
-      {/* WINNER */}
       {showWinner && (
         <div className="winner-overlay">
           <div className="w-trophy">🏆</div>

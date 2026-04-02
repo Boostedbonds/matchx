@@ -21,76 +21,90 @@ const COMMENTARY_POOL = [
 ];
 
 function SpectatorView({ user, onNav, onLogout }) {
-  const [liveMatch, setLiveMatch] = useState(null);
+  const [liveMatch,  setLiveMatch]  = useState(null);
   const [commentary, setCommentary] = useState([]);
-  const [viewers, setViewers] = useState(12);
-  const [streaming, setStreaming] = useState(false);
-  const [cameraError, setCameraError] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const prevScoreRef = useRef({ playerA: 0, playerB: 0 });
+  const [viewers,    setViewers]    = useState(12);
+  const [streaming,  setStreaming]  = useState(false);
+  const [cameraError,setCameraError]= useState(false);
+  const [elapsed,    setElapsed]    = useState(0);
+  const videoRef    = useRef(null);
+  const streamRef   = useRef(null);
+  const prevScoreRef = useRef({ p1: 0, p2: 0 });
 
-  // Subscribe to Supabase live match in real-time
+  // ── Fetch initial live match + subscribe to real-time updates ─────────────
   useEffect(() => {
-    // Initial fetch
-    const fetchLiveMatch = async () => {
-      const { data, error } = await supabase
+    let channel;
+
+    const loadMatch = async () => {
+      const { data } = await supabase
         .from("matches")
         .select("*")
+        .eq("share_code", "LIVE00")
         .eq("status", "live")
-        .single();
-      if (!error && data) {
+        .maybeSingle();
+
+      if (data) {
         setLiveMatch(data);
-        prevScoreRef.current = { playerA: data.playerA ?? 0, playerB: data.playerB ?? 0 };
+        const game  = data.current_game ?? 1;
+        const scores = data.scores?.[game - 1] ?? { p1: 0, p2: 0 };
+        prevScoreRef.current = scores;
+
+        // Subscribe to real-time changes on this row
+        channel = supabase
+          .channel("spectator-match")
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${data.id}` },
+            (payload) => {
+              const row  = payload.new;
+              const game = row.current_game ?? 1;
+              const newScores = row.scores?.[game - 1] ?? { p1: 0, p2: 0 };
+              const prev = prevScoreRef.current;
+
+              setLiveMatch(row);
+
+              const scoredA = newScores.p1 > prev.p1;
+              const scoredB = newScores.p2 > prev.p2;
+
+              if (scoredA || scoredB) {
+                const msg  = COMMENTARY_POOL[Math.floor(Math.random() * COMMENTARY_POOL.length)];
+                const now  = new Date();
+                const time = `${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+                const team = scoredA
+                  ? (row.player1_name || "Team A")
+                  : (row.player2_name || "Team B");
+
+                setCommentary(prev => [
+                  { text: `${team} scores! ${msg}`, time, highlight: Math.random() > 0.6 },
+                  ...prev,
+                ].slice(0, 20));
+                setViewers(v => v + Math.floor(Math.random() * 2));
+                prevScoreRef.current = newScores;
+              }
+            }
+          )
+          .subscribe();
       }
     };
-    fetchLiveMatch();
 
-    // Realtime subscription
-    const channel = supabase
-      .channel("live-match-spectator")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "matches", filter: "status=eq.live" },
-        (payload) => {
-          const data = payload.new;
-          if (!data) return;
-          setLiveMatch(data);
-
-          const prev = prevScoreRef.current;
-          const scoredA = (data.playerA ?? 0) > prev.playerA;
-          const scoredB = (data.playerB ?? 0) > prev.playerB;
-          if (scoredA || scoredB) {
-            const msg = COMMENTARY_POOL[Math.floor(Math.random() * COMMENTARY_POOL.length)];
-            const now = new Date();
-            const timeStr = `${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-            const team = scoredA ? (data.teamAName || "Team A") : (data.teamBName || "Team B");
-            setCommentary(prev => [
-              { text: `${team} scores! ${msg}`, time: timeStr, highlight: Math.random() > 0.6 },
-              ...prev,
-            ].slice(0, 20));
-            setViewers(v => v + Math.floor(Math.random() * 2));
-            prevScoreRef.current = { playerA: data.playerA ?? 0, playerB: data.playerB ?? 0 };
-          }
-        }
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
+    loadMatch();
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, []);
 
-  // Timer
+  // ── Timer ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     const t = setInterval(() => setElapsed(e => e + 1), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const formatTime = (s) =>
+    `${String(Math.floor(s / 60)).padStart(2,"0")}:${String(s % 60).padStart(2,"0")}`;
 
   const startStream = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } }, audio: true,
+      });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       setStreaming(true);
@@ -104,10 +118,12 @@ function SpectatorView({ user, onNav, onLogout }) {
     setStreaming(false);
   };
 
-  const scoreA  = liveMatch?.playerA ?? 0;
-  const scoreB  = liveMatch?.playerB ?? 0;
-  const teamA   = liveMatch?.teamAName || "Team A";
-  const teamB   = liveMatch?.teamBName || "Team B";
+  const game    = liveMatch?.current_game ?? 1;
+  const scores  = liveMatch?.scores?.[game - 1] ?? { p1: 0, p2: 0 };
+  const scoreA  = scores.p1;
+  const scoreB  = scores.p2;
+  const teamA   = liveMatch?.player1_name || "Team A";
+  const teamB   = liveMatch?.player2_name || "Team B";
   const leading = scoreA > scoreB ? "a" : scoreB > scoreA ? "b" : null;
   const isDeuce = scoreA >= 20 && scoreB >= 20 && scoreA === scoreB;
 
@@ -126,27 +142,26 @@ function SpectatorView({ user, onNav, onLogout }) {
           .team-name-big { font-size: 20px !important; }
           .page-title { font-size: 30px !important; }
           .scoreboard-card { padding: 20px !important; }
-          .score-display { grid-template-columns: 1fr 60px 1fr !important; }
         }
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
         .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 44px; letter-spacing: 4px; color: #fff; }
         .live-indicator { display: flex; align-items: center; gap: 8px; background: rgba(255,50,80,0.12); border: 1px solid rgba(255,50,80,0.35); padding: 8px 18px; font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 3px; color: #ff3250; text-transform: uppercase; }
-        .live-dot { width: 8px; height: 8px; background: #ff3250; border-radius: 50%; animation: blink 1s infinite; flex-shrink: 0; }
+        .live-dot { width: 8px; height: 8px; background: #ff3250; border-radius: 50%; animation: blink 1s infinite; }
         @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
         .no-match { text-align: center; padding: 80px 20px; font-family: 'Rajdhani', sans-serif; }
         .no-match-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
         .no-match-text { font-size: 14px; letter-spacing: 3px; color: rgba(255,255,255,0.2); text-transform: uppercase; }
-        .spectator-grid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+        .spectator-grid { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
         .scoreboard-card { background: linear-gradient(135deg, #0d1520, #080a0f); border: 1px solid rgba(0,255,200,0.12); padding: 32px; position: relative; overflow: hidden; margin-bottom: 20px; }
         .scoreboard-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(0,255,200,0.05), transparent 60%); pointer-events: none; }
-        .sb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 8px; }
+        .sb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
         .sb-meta { font-family: 'Rajdhani', sans-serif; font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: rgba(255,255,255,0.25); }
         .sb-timer { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: #00ffc8; letter-spacing: 3px; }
         .sb-viewers { display: flex; align-items: center; gap: 6px; font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; color: rgba(255,255,255,0.4); }
         .score-display { display: grid; grid-template-columns: 1fr 80px 1fr; align-items: center; }
-        .team-block { text-align: center; min-width: 0; }
+        .team-block { text-align: center; }
         .team-block.leading .score-big { color: #00ffc8; text-shadow: 0 0 40px rgba(0,255,200,0.5); }
-        .team-name-big { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 3px; color: #fff; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .team-name-big { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 3px; color: #fff; margin-bottom: 4px; }
         .score-big { font-family: 'Bebas Neue', sans-serif; font-size: 100px; line-height: 1; color: rgba(255,255,255,0.5); transition: all 0.4s; }
         .game-indicator { text-align: center; }
         .vs-text { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: rgba(255,255,255,0.1); letter-spacing: 4px; }
@@ -220,10 +235,11 @@ function SpectatorView({ user, onNav, onLogout }) {
         ) : (
           <div className="spectator-grid">
 
+            {/* Left: Scoreboard + Camera */}
             <div>
               <div className="scoreboard-card">
                 <div className="sb-header">
-                  <div className="sb-meta">🏸 Live Match · {liveMatch.matchType || "Singles"}</div>
+                  <div className="sb-meta">🏸 Live · Game {game}</div>
                   <div className="sb-timer">{formatTime(elapsed)}</div>
                   <div className="sb-viewers">
                     <span>👁</span>
@@ -259,6 +275,7 @@ function SpectatorView({ user, onNav, onLogout }) {
                 )}
               </div>
 
+              {/* Camera */}
               <div className="stream-card">
                 <div className="stream-header">
                   <div className="stream-title">📷 Live Camera Feed</div>
@@ -303,6 +320,7 @@ function SpectatorView({ user, onNav, onLogout }) {
               </div>
             </div>
 
+            {/* Right: Score summary + Commentary */}
             <div>
               <div className="score-card">
                 <div className="card-title">
@@ -313,12 +331,12 @@ function SpectatorView({ user, onNav, onLogout }) {
                   <div className="stat-label">Scores</div>
                   <div style={{ display: "flex", gap: 16, alignItems: "flex-end" }}>
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontFamily: "'Rajdhani'", fontSize: 9, letterSpacing: 2, color: "rgba(255,255,255,0.25)", marginBottom: 4 }}>{teamA.substring(0,8).toUpperCase()}</div>
+                      <div style={{ fontFamily: "'Rajdhani'", fontSize: 9, letterSpacing: 2, color: "rgba(255,255,255,0.25)", marginBottom: 4 }}>{teamA.substring(0, 8).toUpperCase()}</div>
                       <div style={{ fontFamily: "'Bebas Neue'", fontSize: 32, color: "#00ffc8" }}>{scoreA}</div>
                     </div>
                     <div style={{ fontFamily: "'Bebas Neue'", fontSize: 28, color: "rgba(255,255,255,0.15)", paddingBottom: 4 }}>:</div>
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontFamily: "'Rajdhani'", fontSize: 9, letterSpacing: 2, color: "rgba(255,255,255,0.25)", marginBottom: 4 }}>{teamB.substring(0,8).toUpperCase()}</div>
+                      <div style={{ fontFamily: "'Rajdhani'", fontSize: 9, letterSpacing: 2, color: "rgba(255,255,255,0.25)", marginBottom: 4 }}>{teamB.substring(0, 8).toUpperCase()}</div>
                       <div style={{ fontFamily: "'Bebas Neue'", fontSize: 32, color: "#ff3250" }}>{scoreB}</div>
                     </div>
                   </div>

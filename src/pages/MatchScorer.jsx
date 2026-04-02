@@ -14,7 +14,7 @@ import {
   saveEvent,
   saveCommentaryLine,
   updatePlayerStats,
-} from "../utils/supabase";
+} from "../services/supabase";
 
 // ─── Demo players — replaced by PlayerSelect once that is built ───────────────
 const DEMO_P1 = { name: "Rahul Sharma", init: "RS", club: "Eagles FC", rating: 2104 };
