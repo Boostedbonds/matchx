@@ -146,9 +146,20 @@ function SpectatorView({ user, onNav, onLogout }) {
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         .main {
-          margin-left: 220px; flex: 1;
-          min-height: 100vh; overflow-y: auto;
+          margin-left: 220px;
+          flex: 1;
+          min-height: 100vh;
+          overflow-y: auto;
           padding: 32px;
+          width: calc(100% - 220px);
+        }
+
+        @media (max-width: 768px) {
+          .main {
+            margin-left: 0;
+            padding: 16px;
+            width: 100%;
+          }
         }
 
         /* Header */
@@ -160,6 +171,10 @@ function SpectatorView({ user, onNav, onLogout }) {
         .page-title {
           font-family: 'Bebas Neue', sans-serif;
           font-size: 44px; letter-spacing: 4px; color: #fff;
+        }
+
+        @media (max-width: 768px) {
+          .page-title { font-size: 28px; letter-spacing: 2px; }
         }
 
         .live-indicator {
@@ -182,6 +197,10 @@ function SpectatorView({ user, onNav, onLogout }) {
         /* Match selector */
         .match-selector {
           display: flex; gap: 12px; margin-bottom: 24px;
+        }
+
+        @media (max-width: 768px) {
+          .match-selector { flex-direction: column; }
         }
 
         .match-tab {
@@ -222,6 +241,12 @@ function SpectatorView({ user, onNav, onLogout }) {
           gap: 20px;
         }
 
+        @media (max-width: 1024px) {
+          .spectator-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
         /* Scoreboard */
         .scoreboard-card {
           background: linear-gradient(135deg, #0d1520, #080a0f);
@@ -229,6 +254,10 @@ function SpectatorView({ user, onNav, onLogout }) {
           padding: 32px;
           position: relative; overflow: hidden;
           margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+          .scoreboard-card { padding: 20px; }
         }
 
         .scoreboard-card::before {
@@ -281,6 +310,10 @@ function SpectatorView({ user, onNav, onLogout }) {
           font-size: 28px; letter-spacing: 3px; color: #fff; margin-bottom: 4px;
         }
 
+        @media (max-width: 480px) {
+          .team-name-big { font-size: 18px; letter-spacing: 1px; }
+        }
+
         .team-players-sub {
           font-family: 'Rajdhani', sans-serif;
           font-size: 11px; color: rgba(255,255,255,0.25);
@@ -292,6 +325,10 @@ function SpectatorView({ user, onNav, onLogout }) {
           font-size: 100px; line-height: 1; color: rgba(255,255,255,0.5);
           transition: color 0.4s, text-shadow 0.4s;
           animation: scoreUpdate 0.3s ease;
+        }
+
+        @media (max-width: 480px) {
+          .score-big { font-size: 64px; }
         }
 
         @keyframes scoreUpdate {
