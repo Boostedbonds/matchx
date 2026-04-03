@@ -10,7 +10,7 @@ import {
   listenToMatch,
   listenToCommentary,
   unsubscribe,
-} from "../utils/supabase";
+} from "../services/supabase";
 
 // ─── useMatch ─────────────────────────────────────────────────────────────────
 // matchId: string uuid from Supabase
@@ -72,7 +72,7 @@ export function useMatch(matchId) {
 // For the spectator lobby / dashboard — shows all currently live matches.
 
 import { useState as useStateAlias, useEffect as useEffectAlias, useRef as useRefAlias } from "react";
-import { fetchLiveMatches, listenToLiveMatches, unsubscribe as unsub } from "../utils/supabase";
+import { fetchLiveMatches, listenToLiveMatches, unsubscribe as unsub } from "../services/supabase";
 
 export function useLiveMatches() {
   const [matches, setMatches] = useState([]);

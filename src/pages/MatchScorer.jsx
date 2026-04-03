@@ -6,7 +6,7 @@ import {
   undoPoint,
   getPlayerStats,
   SHOT_TYPES,
-} from "../utils/matchEngine";
+} from "../services/matchEngine";
 import {
   createMatch,
   updateMatch,

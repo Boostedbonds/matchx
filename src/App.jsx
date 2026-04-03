@@ -10,54 +10,45 @@ import Rankings      from "./pages/Rankings";
 import Players       from "./pages/Players";
 import Admin         from "./pages/Admin";
 
-// ─── Demo session user ────────────────────────────────────────────────────────
-const DEMO_USER = {
-  name:    "Dev Patel",
-  init:    "DP",
-  club:    "Court Kings",
-  rating:  1847,
-  wins:    34,
-  losses:  8,
-  points:  6540,
-  winRate: 81,
-  streak:  4,
-};
-
 // ─── Match flow stages ────────────────────────────────────────────────────────
-//
 //  null            → no active match, normal navigation
 //  "pre"           → RoleSelect   — scorer or spectator?
-//  "playerselect"  → PlayerSelect — pick P1 and P2  (scorer only)
+//  "playerselect"  → PlayerSelect — pick P1 and P2 (scorer only)
 //  "scoring"       → MatchScorer  — live scoring controls
 //  "watching"      → SpectatorView — read-only live feed
-//
-// loggedIn persists for the whole session — no re-login between matches.
 
 export default function App() {
-  const [loggedIn,   setLoggedIn]   = useState(false);
-  const [page,       setPage]       = useState("dashboard");
-  const [matchFlow,  setMatchFlow]  = useState(null);
-  const [liveMatch,  setLiveMatch]  = useState(null);
+  // loggedInUser is now the real Supabase player row
+  const [loggedIn,  setLoggedIn]  = useState(false);
+  const [user,      setUser]      = useState(null);
 
-  // Selected players carried from PlayerSelect → MatchScorer
-  const [matchP1,    setMatchP1]    = useState(null);
-  const [matchP2,    setMatchP2]    = useState(null);
+  const [page,      setPage]      = useState("dashboard");
+  const [matchFlow, setMatchFlow] = useState(null);
+  const [liveMatch, setLiveMatch] = useState(null);
+  const [matchP1,   setMatchP1]   = useState(null);
+  const [matchP2,   setMatchP2]   = useState(null);
 
-  // ── One-time login ──────────────────────────────────────────────────────────
+  // ── Login — Landing passes back the real player object ─────────────────────
   if (!loggedIn) {
-    return <Landing onStart={() => setLoggedIn(true)} />;
+    return (
+      <Landing
+        onStart={(player, isNew) => {
+          setUser(player);
+          setLoggedIn(true);
+          // Could show a welcome toast for new players here
+        }}
+      />
+    );
   }
 
-  // ── Stage: Role Select ──────────────────────────────────────────────────────
+  // ── Role Select ─────────────────────────────────────────────────────────────
   if (matchFlow === "pre") {
     return (
       <RoleSelect
         onSelect={(role) => {
           if (role === "scorer") {
-            // Scorer goes to player selection first
             setMatchFlow("playerselect");
           } else {
-            // Spectator goes straight to live watch
             setMatchFlow("watching");
             setPage("live");
           }
@@ -70,7 +61,7 @@ export default function App() {
     );
   }
 
-  // ── Stage: Player Select (scorer only) ─────────────────────────────────────
+  // ── Player Select (scorer only) ─────────────────────────────────────────────
   if (matchFlow === "playerselect") {
     return (
       <PlayerSelect
@@ -80,24 +71,21 @@ export default function App() {
           setMatchFlow("scoring");
           setPage("setup");
         }}
-        onCancel={() => {
-          // Go back to role select
-          setMatchFlow("pre");
-        }}
+        onCancel={() => setMatchFlow("pre")}
       />
     );
   }
 
-  // ── Stage: Scorer (live controls) ──────────────────────────────────────────
+  // ── Scorer ──────────────────────────────────────────────────────────────────
   if (matchFlow === "scoring" && page === "setup") {
     return (
       <MatchScorer
-        user={DEMO_USER}
+        user={user}
         role="scorer"
         player1={matchP1}
         player2={matchP2}
         onNav={setPage}
-        onLogout={() => setLoggedIn(false)}
+        onLogout={() => { setLoggedIn(false); setUser(null); }}
         onMatchUpdate={(state) => setLiveMatch(state)}
         onMatchEnd={() => {
           setMatchFlow(null);
@@ -109,7 +97,7 @@ export default function App() {
     );
   }
 
-  // ── Stage: Spectator (read-only) ────────────────────────────────────────────
+  // ── Spectator ───────────────────────────────────────────────────────────────
   if (matchFlow === "watching" && page === "live") {
     return (
       <SpectatorView
@@ -122,19 +110,19 @@ export default function App() {
     );
   }
 
-  // ── Normal app navigation (between matches) ─────────────────────────────────
+  // ── Normal navigation ───────────────────────────────────────────────────────
   function handleNav(p) {
     if (p === "setup") {
-      setMatchFlow("pre"); // always go through role select → player select
+      setMatchFlow("pre");
     } else {
       setPage(p);
     }
   }
 
   const sharedProps = {
-    user:     DEMO_USER,
+    user,
     onNav:    handleNav,
-    onLogout: () => setLoggedIn(false),
+    onLogout: () => { setLoggedIn(false); setUser(null); },
   };
 
   switch (page) {
