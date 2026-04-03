@@ -15,7 +15,7 @@ function Dashboard({ user, onNav, onLogout, liveMatch, onWatchLive }) {
 
   const w = user?.wins || 0;
   const l = user?.losses || 0;
-  const total = w + l || 1;
+  const total = w + l;
   const wr = user?.winRate || 0;
   const pts = user?.points || 0;
   const rating = user?.rating || 0;
@@ -215,6 +215,108 @@ function Dashboard({ user, onNav, onLogout, liveMatch, onWatchLive }) {
 
           {/* ── LEFT COLUMN ── */}
           <div>
+            {/* ── STATS SECTION ── */}
+            <div className="card">
+              <div className="card-title">My Stats</div>
+
+              {/* Sub tabs */}
+              <div className="stat-tabs">
+                {["performance","game types","season"].map(t => (
+                  <div key={t} className={`stat-tab ${statTab===t?"active":""}`} onClick={() => setStatTab(t)}>{t}</div>
+                ))}
+              </div>
+
+              {statTab === "performance" && (
+                <>
+                  <div className="two-col-stats" style={{marginBottom:16}}>
+                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#00ff64"}}>{w}</div><div className="mini-stat-label">Wins</div></div>
+                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#ff3250"}}>{l}</div><div className="mini-stat-label">Losses</div></div>
+                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#00ffc8"}}>{total}</div><div className="mini-stat-label">Matches</div></div>
+                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#ffb800"}}>{streak}🔥</div><div className="mini-stat-label">Streak</div></div>
+                  </div>
+                  {[
+                    { label:"Win Rate",   val:wr,     max:100,  color:"#00ffc8", display:`${wr}%` },
+                    { label:"ELO Rating", val:rating, max:3000, color:"#0088ff", display:rating },
+                    { label:"Points",     val:pts,    max:5000, color:"#ffb800", display:pts.toLocaleString() },
+                  ].map((b,i) => (
+                    <div className="bar-row" key={i}>
+                      <div className="bar-header">
+                        <div className="bar-label">{b.label}</div>
+                        <div className="bar-val" style={{color:b.color}}>{b.display}</div>
+                      </div>
+                      <div className="bar-track">
+                        <div className="bar-fill" style={{width:`${Math.min(100,(b.val/b.max)*100)}%`, background:b.color}} />
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {statTab === "game types" && (
+                <>
+                  {[
+                    { label:"Singles",       w:0, l:0, color:"#00ffc8" },
+                    { label:"Doubles",       w:0, l:0, color:"#0088ff" },
+                    { label:"Mixed Doubles", w:0, l:0, color:"#ffb800" },
+                    { label:"Team",          w:0, l:0, color:"#ff3250" },
+                  ].map((g,i) => {
+                    const gt = g.w + g.l || 1;
+                    const gwr = Math.round((g.w/gt)*100);
+                    return (
+                      <div key={i} className="bar-row">
+                        <div className="bar-header">
+                          <div className="bar-label">{g.label}</div>
+                          <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                            <span style={{fontFamily:"'Rajdhani'",fontSize:11,color:"#00ff64",letterSpacing:1}}>{g.w}W</span>
+                            <span style={{fontFamily:"'Rajdhani'",fontSize:11,color:"#ff3250",letterSpacing:1}}>{g.l}L</span>
+                            <div className="bar-val" style={{color:g.color}}>{gwr}%</div>
+                          </div>
+                        </div>
+                        <div className="bar-track">
+                          <div className="bar-fill" style={{width:`${gwr}%`,background:g.color}} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="stat-row-item" style={{marginTop:8}}>
+                    <div className="sri-label">Best Format</div>
+                    <div className="sri-val" style={{color:"#00ffc8"}}>—</div>
+                  </div>
+                  <div className="stat-row-item">
+                    <div className="sri-label">Best Partner</div>
+                    <div className="sri-val" style={{color:"#ffb800"}}>—</div>
+                  </div>
+                </>
+              )}
+
+              {statTab === "season" && (
+                <>
+                  {[
+                    { label:"Season Points", val:pts,  max:5000, color:"#00ffc8", display:pts.toLocaleString() },
+                    { label:"ELO Gained",    val:0,    max:1000, color:"#0088ff", display:"+0" },
+                    { label:"Rank Progress", val:1,    max:100,  color:"#ffb800", display:`#${user?.rank || 99}` },
+                    { label:"Tournaments",   val:0,    max:10,   color:"#ff3250", display:"0 played" },
+                  ].map((b,i) => (
+                    <div className="bar-row" key={i}>
+                      <div className="bar-header">
+                        <div className="bar-label">{b.label}</div>
+                        <div className="bar-val" style={{color:b.color}}>{b.display}</div>
+                      </div>
+                      <div className="bar-track">
+                        <div className="bar-fill" style={{width:`${Math.min(100,(b.val/b.max)*100)}%`,background:b.color}} />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="two-col-stats" style={{marginTop:8}}>
+                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#00ffc8"}}>S4</div><div className="mini-stat-label">Season</div></div>
+                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#ffb800"}}>Apr</div><div className="mini-stat-label">Ends</div></div>
+                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#00ff64"}}>#{user?.rank||99}</div><div className="mini-stat-label">Rank</div></div>
+                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#ff3250"}}>{wr}%</div><div className="mini-stat-label">Win Rate</div></div>
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* Recent Matches */}
             <div className="card">
               <div className="card-title">
@@ -237,111 +339,6 @@ function Dashboard({ user, onNav, onLogout, liveMatch, onWatchLive }) {
                 </div>
               ))}
               <button className="start-match-btn" onClick={() => onNav("setup")}>+ Start New Match</button>
-            </div>
-
-            {/* ── STATS SECTION (replaces Online Players) ── */}
-            <div className="card">
-              <div className="card-title">My Stats</div>
-
-              {/* Sub tabs */}
-              <div className="stat-tabs">
-                {["performance","game types","season"].map(t => (
-                  <div key={t} className={`stat-tab ${statTab===t?"active":""}`} onClick={() => setStatTab(t)}>{t}</div>
-                ))}
-              </div>
-
-              {/* Performance tab */}
-              {statTab === "performance" && (
-                <>
-                  <div className="two-col-stats" style={{marginBottom:16}}>
-                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#00ff64"}}>{w}</div><div className="mini-stat-label">Wins</div></div>
-                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#ff3250"}}>{l}</div><div className="mini-stat-label">Losses</div></div>
-                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#00ffc8"}}>{total}</div><div className="mini-stat-label">Matches</div></div>
-                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#ffb800"}}>{streak}🔥</div><div className="mini-stat-label">Streak</div></div>
-                  </div>
-                  {[
-                    { label:"Win Rate",    val:wr,     max:100,  color:"#00ffc8", display:`${wr}%` },
-                    { label:"ELO Rating",  val:rating, max:3000, color:"#0088ff", display:rating },
-                    { label:"Points",      val:pts,    max:5000, color:"#ffb800", display:pts.toLocaleString() },
-                  ].map((b,i) => (
-                    <div className="bar-row" key={i}>
-                      <div className="bar-header">
-                        <div className="bar-label">{b.label}</div>
-                        <div className="bar-val" style={{color:b.color}}>{b.display}</div>
-                      </div>
-                      <div className="bar-track">
-                        <div className="bar-fill" style={{width:`${Math.min(100,(b.val/b.max)*100)}%`, background:b.color}} />
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {/* Game Types tab */}
-              {statTab === "game types" && (
-                <>
-                  {[
-                    { label:"Singles",       w:22, l:5,  color:"#00ffc8" },
-                    { label:"Doubles",       w:8,  l:2,  color:"#0088ff" },
-                    { label:"Mixed Doubles", w:4,  l:1,  color:"#ffb800" },
-                    { label:"Team",          w:0,  l:0,  color:"#ff3250" },
-                  ].map((g,i) => {
-                    const gt = g.w + g.l || 1;
-                    const gwr = Math.round((g.w/gt)*100);
-                    return (
-                      <div key={i} className="bar-row">
-                        <div className="bar-header">
-                          <div className="bar-label">{g.label}</div>
-                          <div style={{display:"flex",gap:12,alignItems:"center"}}>
-                            <span style={{fontFamily:"'Rajdhani'",fontSize:11,color:"#00ff64",letterSpacing:1}}>{g.w}W</span>
-                            <span style={{fontFamily:"'Rajdhani'",fontSize:11,color:"#ff3250",letterSpacing:1}}>{g.l}L</span>
-                            <div className="bar-val" style={{color:g.color}}>{gwr}%</div>
-                          </div>
-                        </div>
-                        <div className="bar-track">
-                          <div className="bar-fill" style={{width:`${gwr}%`,background:g.color}} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div className="stat-row-item" style={{marginTop:8}}>
-                    <div className="sri-label">Best Format</div>
-                    <div className="sri-val" style={{color:"#00ffc8"}}>Singles</div>
-                  </div>
-                  <div className="stat-row-item">
-                    <div className="sri-label">Best Partner</div>
-                    <div className="sri-val" style={{color:"#ffb800"}}>Arjun M.</div>
-                  </div>
-                </>
-              )}
-
-              {/* Season tab */}
-              {statTab === "season" && (
-                <>
-                  {[
-                    { label:"Season Points",  val:pts,    max:5000, color:"#00ffc8", display:pts.toLocaleString() },
-                    { label:"ELO Gained",     val:347,    max:1000, color:"#0088ff", display:"+347" },
-                    { label:"Rank Progress",  val:88,     max:100,  color:"#ffb800", display:"#12 → #8 target" },
-                    { label:"Tournaments",    val:3,      max:10,   color:"#ff3250", display:"3 played" },
-                  ].map((b,i) => (
-                    <div className="bar-row" key={i}>
-                      <div className="bar-header">
-                        <div className="bar-label">{b.label}</div>
-                        <div className="bar-val" style={{color:b.color}}>{b.display}</div>
-                      </div>
-                      <div className="bar-track">
-                        <div className="bar-fill" style={{width:`${Math.min(100,(b.val/b.max)*100)}%`,background:b.color}} />
-                      </div>
-                    </div>
-                  ))}
-                  <div className="two-col-stats" style={{marginTop:8}}>
-                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#00ffc8"}}>S4</div><div className="mini-stat-label">Season</div></div>
-                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#ffb800"}}>Apr</div><div className="mini-stat-label">Ends</div></div>
-                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#00ff64"}}>#12</div><div className="mini-stat-label">Rank</div></div>
-                    <div className="mini-stat"><div className="mini-stat-val" style={{color:"#ff3250"}}>81%</div><div className="mini-stat-label">Win Rate</div></div>
-                  </div>
-                </>
-              )}
             </div>
           </div>
 

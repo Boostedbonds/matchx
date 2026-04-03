@@ -1,148 +1,127 @@
 import { useState } from "react";
-import Landing       from "./pages/Landing";
-import Dashboard     from "./pages/Dashboard";
-import RoleSelect    from "./pages/RoleSelect";
-import PlayerSelect  from "./pages/PlayerSelect";
-import MatchScorer   from "./pages/MatchScorer";
+import Landing from "./pages/Landing";
+import Setup from "./pages/Setup";
+import MatchScene from "./pages/MatchScene";
+import Dashboard from "./pages/Dashboard";
+import Profile from "./pages/Profile";
+import Rankings from "./pages/Rankings";
+import Tournament from "./pages/Tournament";
+import Badges from "./pages/Badges";
+import Players from "./pages/Players";
 import SpectatorView from "./pages/SpectatorView";
-import Tournament    from "./pages/Tournament";
-import Rankings      from "./pages/Rankings";
-import Players       from "./pages/Players";
-import Admin         from "./pages/Admin";
+import RoleSelector from "./pages/RoleSelector";
 
-// ─── Match flow stages ────────────────────────────────────────────────────────
-//  null            → no active match, normal navigation
-//  "pre"           → RoleSelect   — scorer or spectator?
-//  "playerselect"  → PlayerSelect — pick P1 and P2 (scorer only)
-//  "scoring"       → MatchScorer  — live scoring controls
-//  "watching"      → SpectatorView — read-only live feed
+const INITIAL_USER = {
+  name: "Shaurya Kataria",
+  club: "MatchX",
+  avatar: "SK",
+  rating: 1500,
+  points: 0,
+  rank: 99,
+  wins: 0,
+  losses: 0,
+  winRate: 0,
+  streak: 0,
+  badges: [],
+};
 
-export default function App() {
-  // loggedInUser is now the real Supabase player row
-  const [loggedIn,  setLoggedIn]  = useState(false);
-  const [user,      setUser]      = useState(null);
+function App() {
+  const [page, setPage] = useState("landing");
+  const [matchData, setMatchData] = useState(null);
+  const [user, setUser] = useState(INITIAL_USER);
+  const [roleContext, setRoleContext] = useState("match");
 
-  const [page,      setPage]      = useState("dashboard");
-  const [matchFlow, setMatchFlow] = useState(null);
-  const [liveMatch, setLiveMatch] = useState(null);
-  const [matchP1,   setMatchP1]   = useState(null);
-  const [matchP2,   setMatchP2]   = useState(null);
-
-  // ── Login — Landing passes back the real player object ─────────────────────
-  if (!loggedIn) {
-    return (
-      <Landing
-        onStart={(player, isNew) => {
-          setUser(player);
-          setLoggedIn(true);
-          // Could show a welcome toast for new players here
-        }}
-      />
-    );
-  }
-
-  // ── Role Select ─────────────────────────────────────────────────────────────
-  if (matchFlow === "pre") {
-    return (
-      <RoleSelect
-        onSelect={(role) => {
-          if (role === "scorer") {
-            setMatchFlow("playerselect");
-          } else {
-            setMatchFlow("watching");
-            setPage("live");
-          }
-        }}
-        onCancel={() => {
-          setMatchFlow(null);
-          setPage("dashboard");
-        }}
-      />
-    );
-  }
-
-  // ── Player Select (scorer only) ─────────────────────────────────────────────
-  if (matchFlow === "playerselect") {
-    return (
-      <PlayerSelect
-        onStart={(p1, p2) => {
-          setMatchP1(p1);
-          setMatchP2(p2);
-          setMatchFlow("scoring");
-          setPage("setup");
-        }}
-        onCancel={() => setMatchFlow("pre")}
-      />
-    );
-  }
-
-  // ── Scorer ──────────────────────────────────────────────────────────────────
-  if (matchFlow === "scoring" && page === "setup") {
-    return (
-      <MatchScorer
-        user={user}
-        role="scorer"
-        player1={matchP1}
-        player2={matchP2}
-        onNav={setPage}
-        onLogout={() => { setLoggedIn(false); setUser(null); }}
-        onMatchUpdate={(state) => setLiveMatch(state)}
-        onMatchEnd={() => {
-          setMatchFlow(null);
-          setMatchP1(null);
-          setMatchP2(null);
-          setPage("dashboard");
-        }}
-      />
-    );
-  }
-
-  // ── Spectator ───────────────────────────────────────────────────────────────
-  if (matchFlow === "watching" && page === "live") {
-    return (
-      <SpectatorView
-        match={liveMatch}
-        onNav={(p) => {
-          setMatchFlow(null);
-          setPage(p);
-        }}
-      />
-    );
-  }
-
-  // ── Normal navigation ───────────────────────────────────────────────────────
-  function handleNav(p) {
-    if (p === "setup") {
-      setMatchFlow("pre");
-    } else {
-      setPage(p);
-    }
-  }
-
-  const sharedProps = {
-    user,
-    onNav:    handleNav,
-    onLogout: () => { setLoggedIn(false); setUser(null); },
+  const handleLogout = () => {
+    setPage("landing");
+    setUser(INITIAL_USER);
   };
 
-  switch (page) {
-    case "tournament": return <Tournament {...sharedProps} />;
-    case "rankings":   return <Rankings   {...sharedProps} />;
-    case "players":    return <Players    {...sharedProps} />;
-    case "admin":      return <Admin onBack={() => setPage("dashboard")} />;
-    case "dashboard":
-    default:
-      return (
-        <Dashboard
-          {...sharedProps}
-          liveMatch={liveMatch}
-          onWatchLive={() => {
-            if (liveMatch) {
-              setMatchFlow("watching");
-              setPage("live");
-            }
-          }}
-        />
-      );
+  const handleMatchComplete = (result) => {
+    setUser((prev) => {
+      const won = result === "win";
+      const newWins = won ? prev.wins + 1 : prev.wins;
+      const newLosses = won ? prev.losses : prev.losses + 1;
+      const total = newWins + newLosses;
+      const newWinRate = Math.round((newWins / total) * 100);
+      const newStreak = won ? prev.streak + 1 : 0;
+      const newPoints = prev.points + (won ? 120 : 30);
+      const newRating = prev.rating + (won ? 25 : -15);
+
+      const newBadges = [...prev.badges];
+      const add = (b) => { if (!newBadges.includes(b)) newBadges.push(b); };
+      if (newWins >= 1)   add("🏅 First Blood");
+      if (newWins >= 10)  add("⚡ Speed Demon");
+      if (newStreak >= 3) add("🔥 Hot Streak");
+      if (newWins >= 25)  add("🎯 Sharpshooter");
+      if (newWins >= 50)  add("🚀 Legend");
+      if (newPoints >= 5000) add("🌟 Rising Star");
+
+      return { ...prev, wins: newWins, losses: newLosses, winRate: newWinRate, streak: newStreak, points: newPoints, rating: newRating, badges: newBadges };
+    });
+    setPage("dashboard");
+  };
+
+  // Intercept setup & spectator to show RoleSelector first
+  const handleNav = (id) => {
+    if (id === "setup") {
+      setRoleContext("match");
+      setPage("role-select");
+      return;
+    }
+    if (id === "spectator") {
+      setRoleContext("watch");
+      setPage("role-select");
+      return;
+    }
+    setPage(id);
+  };
+
+  const navProps = { onNav: handleNav, onLogout: handleLogout };
+
+  if (page === "landing")   return <Landing onStart={() => setPage("dashboard")} />;
+
+  if (page === "role-select") {
+    return (
+      <RoleSelector
+        context={roleContext}
+        onBack={() => setPage("dashboard")}
+        onSelectScorer={() => {
+          if (roleContext === "match") setPage("setup");
+          else setPage("match");
+        }}
+        onSelectSpectator={() => setPage("spectator")}
+      />
+    );
   }
+
+  if (page === "setup") {
+    return (
+      <Setup
+        onStartMatch={(data) => { setMatchData(data); setPage("match"); }}
+        onBack={() => setPage("dashboard")}
+      />
+    );
+  }
+
+  if (page === "match") {
+    return (
+      <MatchScene
+        matchData={matchData}
+        onBack={() => setPage("dashboard")}
+        onMatchComplete={handleMatchComplete}
+        role="scorer"
+      />
+    );
+  }
+
+  if (page === "spectator")  return <SpectatorView user={user} {...navProps} />;
+  if (page === "profile")    return <Profile user={user} {...navProps} />;
+  if (page === "rankings")   return <Rankings {...navProps} />;
+  if (page === "tournament") return <Tournament {...navProps} />;
+  if (page === "badges")     return <Badges user={user} {...navProps} />;
+  if (page === "players")    return <Players {...navProps} />;
+
+  return <Dashboard user={user} {...navProps} />;
 }
+
+export default App;
