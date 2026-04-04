@@ -147,8 +147,19 @@ function SpectatorView({ user, onNav, onLogout }) {
 
         .main {
           margin-left: 220px; flex: 1;
+          min-width: 0;
           min-height: 100vh; overflow-y: auto;
           padding: 32px;
+        }
+
+        @media (max-width: 768px) {
+          .main { margin-left: 0 !important; padding: 16px !important; }
+          .spectator-grid { grid-template-columns: 1fr !important; }
+          .match-selector { flex-direction: column !important; }
+          .page-title { font-size: 28px !important; }
+          .score-big { font-size: 72px !important; }
+          .team-name-big { font-size: 20px !important; }
+          .sb-timer { font-size: 20px !important; }
         }
 
         /* Header */
@@ -533,7 +544,13 @@ function SpectatorView({ user, onNav, onLogout }) {
         }
       `}</style>
 
-      <Sidebar active="spectator" user={user} onNav={onNav} onLogout={onLogout} />
+      <div style={{ display: "flex", minHeight: "100vh" }}>
+        <div style={{ display: "none" }} id="sv-sidebar-wrap" className="sv-sidebar">
+          <Sidebar active="spectator" user={user} onNav={onNav} onLogout={onLogout} />
+        </div>
+        <style>{`
+          @media (min-width: 769px) { .sv-sidebar { display: block !important; } }
+        `}</style>
 
       <div className="main">
         {/* Header */}
@@ -737,6 +754,7 @@ function SpectatorView({ user, onNav, onLogout }) {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
