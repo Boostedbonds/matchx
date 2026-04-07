@@ -10,6 +10,7 @@ import Badges from "./pages/Badges";
 import Players from "./pages/Players";
 import SpectatorView from "./pages/SpectatorView";
 import RoleSelector from "./pages/RoleSelector";
+import Admin from "./pages/Admin";
 
 const INITIAL_USER = {
   name: "Shaurya Kataria",
@@ -47,38 +48,41 @@ function App() {
       const newPoints = prev.points + (won ? 120 : 30);
       const newRating = prev.rating + (won ? 25 : -15);
 
-      const newBadges = [...prev.badges];
-      const add = (b) => { if (!newBadges.includes(b)) newBadges.push(b); };
-      if (newWins >= 1)   add("🏅 First Blood");
-      if (newWins >= 10)  add("⚡ Speed Demon");
-      if (newStreak >= 3) add("🔥 Hot Streak");
-      if (newWins >= 25)  add("🎯 Sharpshooter");
-      if (newWins >= 50)  add("🚀 Legend");
-      if (newPoints >= 5000) add("🌟 Rising Star");
-
-      return { ...prev, wins: newWins, losses: newLosses, winRate: newWinRate, streak: newStreak, points: newPoints, rating: newRating, badges: newBadges };
+      return {
+        ...prev,
+        wins: newWins,
+        losses: newLosses,
+        winRate: newWinRate,
+        streak: newStreak,
+        points: newPoints,
+        rating: newRating,
+      };
     });
+
     setPage("dashboard");
   };
 
-  // Intercept setup & spectator to show RoleSelector first
   const handleNav = (id) => {
     if (id === "setup") {
       setRoleContext("match");
       setPage("role-select");
       return;
     }
+
     if (id === "spectator") {
       setRoleContext("watch");
       setPage("role-select");
       return;
     }
+
     setPage(id);
   };
 
   const navProps = { onNav: handleNav, onLogout: handleLogout };
 
-  if (page === "landing")   return <Landing onStart={() => setPage("dashboard")} />;
+  if (page === "landing") return <Landing onStart={() => setPage("dashboard")} />;
+
+  if (page === "admin") return <Admin />;
 
   if (page === "role-select") {
     return (
@@ -97,7 +101,10 @@ function App() {
   if (page === "setup") {
     return (
       <Setup
-        onStartMatch={(data) => { setMatchData(data); setPage("match"); }}
+        onStartMatch={(data) => {
+          setMatchData(data);
+          setPage("match");
+        }}
         onBack={() => setPage("dashboard")}
       />
     );
@@ -109,17 +116,16 @@ function App() {
         matchData={matchData}
         onBack={() => setPage("dashboard")}
         onMatchComplete={handleMatchComplete}
-        role="scorer"
       />
     );
   }
 
-  if (page === "spectator")  return <SpectatorView user={user} {...navProps} />;
-  if (page === "profile")    return <Profile user={user} {...navProps} />;
-  if (page === "rankings")   return <Rankings {...navProps} />;
+  if (page === "spectator") return <SpectatorView user={user} {...navProps} />;
+  if (page === "profile") return <Profile user={user} {...navProps} />;
+  if (page === "rankings") return <Rankings {...navProps} />;
   if (page === "tournament") return <Tournament {...navProps} />;
-  if (page === "badges")     return <Badges user={user} {...navProps} />;
-  if (page === "players")    return <Players {...navProps} />;
+  if (page === "badges") return <Badges user={user} {...navProps} />;
+  if (page === "players") return <Players {...navProps} />;
 
   return <Dashboard user={user} {...navProps} />;
 }
