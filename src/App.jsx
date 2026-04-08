@@ -6,7 +6,9 @@ import Admin from "./pages/Admin";
 
 export default function App() {
   return (
-    <div style={{ color: "white", padding: "20px" }}>
+    <div style={{ padding: "20px", color: "white" }}>
+      <h2>MatchX Loaded ✅</h2>
+
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/players" element={<Players />} />
