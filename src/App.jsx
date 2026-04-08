@@ -1,22 +1,68 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import Players from "./pages/Players";
+import { Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext";
+
 import Dashboard from "./pages/Dashboard";
+import Players from "./pages/Players";
 import Rankings from "./pages/Rankings";
 import Admin from "./pages/Admin";
+import Login from "./pages/Login";
+import LiveMatch from "./pages/LiveMatch";
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
   return (
-    <Routes>
-      {/* Default route */}
-      <Route path="/" element={<Dashboard />} />
+    <AuthProvider>
+      <Routes>
+        {/* Public */}
+        <Route path="/login" element={<Login />} />
 
-      {/* Other pages */}
-      <Route path="/players" element={<Players />} />
-      <Route path="/rankings" element={<Rankings />} />
-      <Route path="/admin" element={<Admin />} />
+        {/* Protected */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Catch unknown routes */}
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+        <Route
+          path="/match/:id"
+          element={
+            <ProtectedRoute>
+              <LiveMatch />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/players"
+          element={
+            <ProtectedRoute>
+              <Players />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/rankings"
+          element={
+            <ProtectedRoute>
+              <Rankings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Admin />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </AuthProvider>
   );
 }
