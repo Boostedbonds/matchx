@@ -1,65 +1,39 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../services/supabase";
+import { useNavigate } from "react-router-dom";
 
-const ADMIN_EMAIL = "katariavsk@gmail.com";
-
-function Admin() {
-  const [user, setUser] = useState(null);
-  const [players, setPlayers] = useState([]);
+export default function Admin() {
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    checkUser();
-    fetchPlayers();
+    checkAdmin();
   }, []);
 
-  async function checkUser() {
+  async function checkAdmin() {
     const { data } = await supabase.auth.getUser();
+    const user = data?.user;
 
-    if (!data?.user || data.user.email !== ADMIN_EMAIL) {
-      alert("Access denied");
-      window.location.href = "/";
-    } else {
-      setUser(data.user);
+    if (!user) {
+      navigate("/");
+      return;
     }
+
+    if (user.email !== "katariavsk@gmail.com") {
+      alert("Access denied");
+      navigate("/");
+      return;
+    }
+
+    setLoading(false);
   }
 
-  async function fetchPlayers() {
-    const { data } = await supabase.from("players").select("*");
-    setPlayers(data || []);
-  }
-
-  async function deletePlayer(id) {
-    await supabase.from("players").delete().eq("id", id);
-    fetchPlayers();
-  }
+  if (loading) return <div className="p-4">Checking admin access...</div>;
 
   return (
-    <div style={{ padding: 40, color: "#fff", background: "#080a0f", minHeight: "100vh" }}>
-      <h2>⚙ Admin Panel</h2>
-
-      <h3>Players</h3>
-
-      {players.map(p => (
-        <div
-          key={p.id}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            padding: 10,
-            borderBottom: "1px solid #222"
-          }}
-        >
-          <div>
-            {p.name} ({p.elo || 1500})
-          </div>
-
-          <button onClick={() => deletePlayer(p.id)}>
-            Delete
-          </button>
-        </div>
-      ))}
+    <div className="p-6">
+      <h1 className="text-2xl font-bold">Admin Panel</h1>
+      <p>Welcome, Admin</p>
     </div>
   );
 }
-
-export default Admin;

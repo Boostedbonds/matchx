@@ -1,138 +1,48 @@
-import { useState, useEffect } from "react";
-import Sidebar from "../components/Sidebar";
+import { useEffect, useState } from "react";
 import { supabase } from "../services/supabase";
 
-function Dashboard({ user, onNav, onLogout, liveMatch, onWatchLive }) {
-  const [statTab, setStatTab] = useState("performance");
-  const [players, setPlayers] = useState([]);
+export default function Dashboard() {
   const [matches, setMatches] = useState([]);
-
-  const w = user?.wins || 0;
-  const l = user?.losses || 0;
-  const total = w + l;
-  const wr = user?.winRate || 0;
-  const pts = user?.points || 0;
-  const rating = user?.rating || 1500;
-  const streak = user?.streak || 0;
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchPlayers();
     fetchMatches();
   }, []);
-
-  async function fetchPlayers() {
-    const { data, error } = await supabase
-      .from("players")
-      .select("*")
-      .order("elo", { ascending: false })
-      .limit(5);
-
-    if (!error) setPlayers(data || []);
-  }
 
   async function fetchMatches() {
     const { data, error } = await supabase
       .from("matches")
       .select("*")
-      .order("created_at", { ascending: false })
-      .limit(5);
+      .order("created_at", { ascending: false });
 
-    if (!error) setMatches(data || []);
+    if (error) {
+      console.error("Error fetching matches:", error);
+    } else {
+      setMatches(data || []);
+    }
+    setLoading(false);
   }
 
+  if (loading) return <div className="p-4">Loading dashboard...</div>;
+
   return (
-    <div style={{ minHeight: "100vh", background: "#080a0f", color: "#fff", display: "flex" }}>
-      
-      <Sidebar active="dashboard" user={user} onNav={onNav} onLogout={onLogout} />
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
 
-      <div className="main">
-        <div className="top-bar">
-          <h2 className="page-title">Dashboard</h2>
-        </div>
-
-        {/* STATS */}
-        <div className="stats-grid">
-          <div className="stat-card" style={{"--accent":"#00ffc8"}}>
-            <div className="stat-label">Win Rate</div>
-            <div className="stat-value">{wr}%</div>
-          </div>
-          <div className="stat-card" style={{"--accent":"#0088ff"}}>
-            <div className="stat-label">ELO</div>
-            <div className="stat-value">{rating}</div>
-          </div>
-          <div className="stat-card" style={{"--accent":"#ff3250"}}>
-            <div className="stat-label">Streak</div>
-            <div className="stat-value">{streak}🔥</div>
-          </div>
-          <div className="stat-card" style={{"--accent":"#ffb800"}}>
-            <div className="stat-label">Points</div>
-            <div className="stat-value">{pts}</div>
-          </div>
-        </div>
-
-        <div className="content-grid">
-
-          {/* LEFT */}
-          <div>
-
-            {/* RECENT MATCHES */}
-            <div className="card">
-              <div className="card-title">Recent Matches</div>
-
-              {matches.length === 0 && (
-                <div style={{ opacity: 0.5 }}>No matches yet</div>
-              )}
-
-              {matches.map((m, i) => (
-                <div className="match-item" key={i}>
-                  <div className="match-teams">
-                    <div className="match-vs">
-                      {m.player1_name || "Player 1"} vs {m.player2_name || "Player 2"}
-                    </div>
-                    <div className="match-meta">
-                      {m.status || "completed"}
-                    </div>
-                  </div>
-                  <div className="match-score">
-                    {m.score || "-"}
-                  </div>
-                </div>
-              ))}
-
-              <button className="start-match-btn" onClick={() => onNav("setup")}>
-                + Start New Match
-              </button>
+      {matches.length === 0 ? (
+        <p>No matches available</p>
+      ) : (
+        <div className="space-y-3">
+          {matches.map((match) => (
+            <div key={match.id} className="border p-3 rounded">
+              <p>
+                {match.player1_name} vs {match.player2_name}
+              </p>
+              <p>Status: {match.status}</p>
             </div>
-          </div>
-
-          {/* RIGHT */}
-          <div>
-
-            {/* TOP PLAYERS */}
-            <div className="card">
-              <div className="card-title">Top Players</div>
-
-              {players.length === 0 && (
-                <div style={{ opacity: 0.5 }}>No players yet</div>
-              )}
-
-              {players.map((p, i) => (
-                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0" }}>
-                  <div>{i + 1}</div>
-                  <div style={{ flex:1 }}>
-                    <div>{p.name}</div>
-                    <div style={{ fontSize:10, opacity:0.5 }}>{p.club}</div>
-                  </div>
-                  <div>{p.elo || 1500}</div>
-                </div>
-              ))}
-            </div>
-
-          </div>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
-
-export default Dashboard;

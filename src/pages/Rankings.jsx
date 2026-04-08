@@ -1,70 +1,45 @@
 import { useEffect, useState } from "react";
-import Sidebar from "../components/Sidebar";
 import { supabase } from "../services/supabase";
 
-function Rankings({ user, onNav, onLogout }) {
+export default function Rankings() {
   const [players, setPlayers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchPlayers();
+    fetchRankings();
   }, []);
 
-  async function fetchPlayers() {
-    const { data } = await supabase
+  async function fetchRankings() {
+    const { data, error } = await supabase
       .from("players")
       .select("*")
       .order("elo", { ascending: false });
 
-    setPlayers(data || []);
+    if (error) {
+      console.error("Error fetching rankings:", error);
+    } else {
+      setPlayers(data || []);
+    }
+    setLoading(false);
   }
 
+  if (loading) return <div className="p-4">Loading rankings...</div>;
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#080a0f", color: "#fff" }}>
-      <Sidebar active="rankings" user={user} onNav={onNav} onLogout={onLogout} />
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Rankings</h1>
 
-      <div style={{ flex: 1, padding: 32 }}>
-        <h2>🏆 Leaderboard</h2>
-
-        <div style={{ marginTop: 20 }}>
-          {players.map((p, i) => (
-            <div
-              key={p.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: 12,
-                borderBottom: "1px solid #222"
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <strong>#{i + 1}</strong>
-
-                <img
-                  src={p.avatar_url || "/default-avatar.png"}
-                  style={{ width: 36, height: 36, borderRadius: "50%" }}
-                />
-
-                <div>
-                  <div>{p.name}</div>
-                  <div style={{ fontSize: 12, opacity: 0.6 }}>
-                    {p.club || "No club"}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ textAlign: "right" }}>
-                <div style={{ color: "#00ffc8" }}>{p.elo || 1500}</div>
-                <div style={{ fontSize: 12, opacity: 0.6 }}>
-                  {p.wins || 0}W / {p.losses || 0}L
-                </div>
-              </div>
+      {players.length === 0 ? (
+        <p>No players ranked yet</p>
+      ) : (
+        <div className="space-y-2">
+          {players.map((player, index) => (
+            <div key={player.id} className="border p-3 rounded">
+              #{index + 1} {player.name} — {player.elo} ELO
             </div>
           ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
-
-export default Rankings;
