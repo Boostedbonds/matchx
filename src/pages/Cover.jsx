@@ -5,16 +5,22 @@ import "./Cover.css";
 export default function Cover() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
-  const handleEnterArena = () => {
-    setShowEmailForm(true);
-  };
-
-  const handleEmailSubmit = (e) => {
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
-    if (email) {
+    if (!email) return;
+
+    setLoading(true);
+    setMessage("");
+
+    try {
+      // Navigate to login with email pre-filled
       navigate("/login", { state: { email } });
+    } catch (err) {
+      setMessage("Error processing email");
+      setLoading(false);
     }
   };
 
@@ -23,7 +29,27 @@ export default function Cover() {
       <div className="background"></div>
       <div className="grid-overlay"></div>
       
-      {/* Badminton Court Visualization */}
+      {/* Badminton Court Lines */}
+      <svg className="badminton-lines" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
+        {/* Outer rectangle */}
+        <rect x="150" y="200" width="700" height="600" fill="none" stroke="rgba(255, 200, 0, 0.3)" strokeWidth="3"/>
+        
+        {/* Center line */}
+        <line x1="500" y1="200" x2="500" y2="800" stroke="rgba(255, 200, 0, 0.25)" strokeWidth="2"/>
+        
+        {/* Service line */}
+        <line x1="150" y1="350" x2="850" y2="350" stroke="rgba(255, 200, 0, 0.2)" strokeWidth="2"/>
+        <line x1="150" y1="650" x2="850" y2="650" stroke="rgba(255, 200, 0, 0.2)" strokeWidth="2"/>
+        
+        {/* Side lines */}
+        <line x1="200" y1="200" x2="200" y2="800" stroke="rgba(255, 200, 0, 0.15)" strokeWidth="1" strokeDasharray="5,5"/>
+        <line x1="800" y1="200" x2="800" y2="800" stroke="rgba(255, 200, 0, 0.15)" strokeWidth="1" strokeDasharray="5,5"/>
+        
+        {/* Center circle */}
+        <circle cx="500" cy="500" r="80" fill="none" stroke="rgba(255, 200, 0, 0.4)" strokeWidth="2"/>
+      </svg>
+
+      {/* Concentric circles background */}
       <div className="badminton-court">
         <div className="court-inner"></div>
       </div>
@@ -35,43 +61,31 @@ export default function Cover() {
         </h1>
         <p className="subtitle">Professional match management</p>
 
-        {!showEmailForm ? (
-          <>
-            <div className="form-group">
-              <input type="text" placeholder="Shaurya Kataria" readOnly />
-              <input type="password" placeholder="••••" readOnly />
-            </div>
+        <form onSubmit={handleEmailSubmit} className="email-form">
+          <div className="form-group">
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+              autoFocus
+            />
+          </div>
+          <button 
+            type="submit" 
+            className="btn-enter"
+            disabled={loading}
+          >
+            {loading ? "Sending..." : "SEND MAGIC LINK"}
+          </button>
+        </form>
 
-            <button className="btn-enter" onClick={handleEnterArena}>
-              ENTER ARENA
-            </button>
-          </>
-        ) : (
-          <form onSubmit={handleEmailSubmit} className="email-form">
-            <div className="form-group">
-              <input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-            <button type="submit" className="btn-enter">
-              SEND MAGIC LINK
-            </button>
-            <button
-              type="button"
-              className="btn-back"
-              onClick={() => {
-                setShowEmailForm(false);
-                setEmail("");
-              }}
-            >
-              ← BACK
-            </button>
-          </form>
+        {message && (
+          <div className={`message ${message.includes("Error") ? "error" : "success"}`}>
+            {message}
+          </div>
         )}
 
         <div className="info-text">

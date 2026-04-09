@@ -36,38 +36,51 @@
   width: 100%;
   height: 100%;
   background-image: 
-    linear-gradient(rgba(255, 200, 0, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 200, 0, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(255, 200, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 200, 0, 0.04) 1px, transparent 1px);
   background-size: 40px 40px;
   z-index: 1;
 }
 
-/* Badminton Court Visualization */
+/* Badminton Court SVG Lines */
+.badminton-lines {
+  position: absolute;
+  top: 0;
+  right: -5%;
+  width: 60%;
+  height: 100%;
+  z-index: 2;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Badminton Court Circles */
 .badminton-court {
   position: absolute;
   top: 50%;
-  right: -10%;
+  right: 5%;
   transform: translateY(-50%);
-  width: 800px;
-  height: 800px;
+  width: 600px;
+  height: 600px;
   z-index: 2;
+  pointer-events: none;
 }
 
-/* Outer court circle */
+/* Outer court circle with glow */
 .badminton-court::before {
   content: '';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 700px;
-  height: 700px;
-  border: 4px solid rgba(255, 200, 0, 0.7);
+  width: 600px;
+  height: 600px;
+  border: 3px solid rgba(255, 200, 0, 0.6);
   border-radius: 50%;
   box-shadow: 
-    0 0 80px rgba(255, 200, 0, 0.6),
-    0 0 120px rgba(255, 150, 0, 0.3),
-    inset 0 0 80px rgba(255, 200, 0, 0.2);
+    0 0 60px rgba(255, 200, 0, 0.5),
+    0 0 100px rgba(255, 150, 0, 0.2),
+    inset 0 0 60px rgba(255, 200, 0, 0.15);
 }
 
 /* Middle court circle */
@@ -77,13 +90,13 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 450px;
-  height: 450px;
-  border: 3px solid rgba(255, 200, 0, 0.8);
+  width: 350px;
+  height: 350px;
+  border: 2px solid rgba(255, 200, 0, 0.7);
   border-radius: 50%;
   box-shadow: 
-    0 0 60px rgba(255, 200, 0, 0.7),
-    inset 0 0 60px rgba(255, 200, 0, 0.2);
+    0 0 40px rgba(255, 200, 0, 0.5),
+    inset 0 0 40px rgba(255, 200, 0, 0.15);
 }
 
 .court-inner {
@@ -91,40 +104,18 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 150px;
-  height: 150px;
-  border: 2px solid rgba(255, 180, 0, 0.7);
+  width: 100px;
+  height: 100px;
+  border: 2px solid rgba(255, 180, 0, 0.6);
   border-radius: 50%;
-  box-shadow: 0 0 30px rgba(255, 180, 0, 0.6);
-}
-
-/* Badminton Racket SVG */
-.badminton-racket {
-  position: absolute;
-  width: 300px;
-  height: 300px;
-  opacity: 0.3;
-  top: 10%;
-  right: 5%;
-  z-index: 2;
-}
-
-/* Badminton Shuttlecock SVG */
-.badminton-shuttle {
-  position: absolute;
-  width: 150px;
-  height: 150px;
-  opacity: 0.4;
-  bottom: 15%;
-  right: 20%;
-  z-index: 2;
+  box-shadow: 0 0 25px rgba(255, 180, 0, 0.5);
 }
 
 .content {
   position: relative;
   z-index: 10;
   text-align: center;
-  max-width: 600px;
+  max-width: 550px;
   padding: 40px;
   animation: slideUp 0.8s ease-out;
 }
@@ -175,6 +166,10 @@
   margin-bottom: 40px;
 }
 
+.email-form {
+  margin-bottom: 20px;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -182,28 +177,30 @@
 .form-group input {
   width: 100%;
   padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.96);
   border: 2px solid rgba(255, 200, 0, 0.3);
   color: #000000;
   font-size: 15px;
-  margin-bottom: 15px;
   font-weight: 500;
-  border-radius: 4px;
+  border-radius: 6px;
   transition: all 0.3s ease;
+  font-family: "Arial", sans-serif;
 }
 
 .form-group input:focus {
   outline: none;
   border-color: rgba(255, 200, 0, 0.8);
   box-shadow: 0 0 15px rgba(255, 200, 0, 0.3);
+  background: rgba(255, 255, 255, 1);
+}
+
+.form-group input:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .form-group input::placeholder {
   color: #999999;
-}
-
-.email-form {
-  margin-bottom: 20px;
 }
 
 .btn-enter {
@@ -218,12 +215,12 @@
   text-transform: uppercase;
   cursor: pointer;
   transition: all 0.3s ease;
-  margin-top: 10px;
-  border-radius: 4px;
+  border-radius: 6px;
   box-shadow: 0 0 20px rgba(255, 200, 0, 0.4);
+  font-family: "Arial", sans-serif;
 }
 
-.btn-enter:hover {
+.btn-enter:hover:not(:disabled) {
   background: #ffdc00;
   box-shadow: 
     0 0 30px rgba(255, 200, 0, 0.8),
@@ -231,42 +228,56 @@
   transform: translateY(-2px);
 }
 
-.btn-enter:active {
+.btn-enter:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.btn-back {
-  width: 100%;
-  padding: 14px 20px;
-  background: transparent;
-  border: 2px solid rgba(255, 200, 0, 0.5);
-  color: #ffc800;
-  font-size: 14px;
-  font-weight: bold;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.3s ease;
-  margin-top: 10px;
+.btn-enter:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
-.btn-back:hover {
-  border-color: rgba(255, 200, 0, 0.8);
-  background: rgba(255, 200, 0, 0.1);
-  color: #ffdc00;
+.message {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-top: 15px;
+  font-size: 14px;
+  font-weight: 500;
+  animation: slideDown 0.4s ease-out;
+}
+
+.message.success {
+  background: rgba(76, 175, 80, 0.15);
+  border: 1px solid rgba(76, 175, 80, 0.6);
+  color: #4caf50;
+}
+
+.message.error {
+  background: rgba(255, 107, 107, 0.15);
+  border: 1px solid rgba(255, 107, 107, 0.6);
+  color: #ff6b6b;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .info-text {
   margin-top: 30px;
   font-size: 11px;
   color: #777777;
-  line-height: 1.6;
+  line-height: 1.8;
 }
 
-.info-text .highlight {
-  color: #ffc800;
-  font-weight: 500;
+.info-text div {
+  margin-bottom: 6px;
 }
 
 .footer-nav {
@@ -286,6 +297,7 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   color: #666666;
+  font-family: "Arial", sans-serif;
 }
 
 .nav-items span {
@@ -302,6 +314,7 @@
   font-size: 10px;
   color: #444444;
   margin-top: 20px;
+  font-family: "Arial", sans-serif;
 }
 
 /* Responsive */
@@ -310,20 +323,14 @@
     font-size: 50px;
   }
 
+  .badminton-lines {
+    right: -15%;
+    width: 70%;
+  }
+
   .badminton-court {
-    width: 400px;
-    height: 400px;
-    right: -10%;
-  }
-
-  .badminton-racket {
-    width: 150px;
-    height: 150px;
-  }
-
-  .badminton-shuttle {
-    width: 80px;
-    height: 80px;
+    width: 350px;
+    height: 350px;
   }
 
   .nav-items {
