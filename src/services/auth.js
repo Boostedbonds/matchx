@@ -1,16 +1,39 @@
 import { supabase } from "./supabase";
 
 export async function loginWithMagicLink(email) {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: window.location.origin
-    }
-  });
+  try {
+    const { error, data } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      }
+    });
 
-  if (error) {
-    alert(error.message);
-  } else {
-    alert("Check your email for login link");
+    if (error) {
+      return { 
+        success: false, 
+        message: error.message || "Failed to send magic link" 
+      };
+    }
+
+    return { 
+      success: true, 
+      message: "Magic link sent! Check your email",
+      data 
+    };
+  } catch (err) {
+    return { 
+      success: false, 
+      message: err.message || "An error occurred" 
+    };
   }
+}
+
+export async function logout() {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    console.error("Logout error:", error);
+    return { success: false, message: error.message };
+  }
+  return { success: true, message: "Logged out successfully" };
 }

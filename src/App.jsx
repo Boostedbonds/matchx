@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import Cover from "./pages/Cover";
 import Dashboard from "./pages/Dashboard";
@@ -7,17 +7,19 @@ import Rankings from "./pages/Rankings";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import LiveMatch from "./pages/LiveMatch";
+import AuthCallback from "./pages/AuthCallback";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        {/* Public */}
+        {/* Public Routes */}
         <Route path="/" element={<Cover />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         
-        {/* Protected */}
+        {/* Protected Routes */}
         <Route
           path="/dashboard"
           element={
@@ -58,6 +60,9 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Catch all - redirect to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
   );
