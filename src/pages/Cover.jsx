@@ -1,11 +1,22 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useState } from "react";
 import "./Cover.css";
 
 export default function Cover() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [email, setEmail] = useState("");
+  const [showEmailForm, setShowEmailForm] = useState(false);
 
   const handleEnterArena = () => {
-    navigate("/login");
+    setShowEmailForm(true);
+  };
+
+  const handleEmailSubmit = (e) => {
+    e.preventDefault();
+    if (email) {
+      navigate("/login", { state: { email } });
+    }
   };
 
   return (
@@ -23,14 +34,44 @@ export default function Cover() {
         </h1>
         <p className="subtitle">Professional match management</p>
 
-        <div className="form-group">
-          <input type="text" placeholder="Shaurya Kataria" readOnly />
-          <input type="password" placeholder="••••" readOnly />
-        </div>
+        {!showEmailForm ? (
+          <>
+            <div className="form-group">
+              <input type="text" placeholder="Shaurya Kataria" readOnly />
+              <input type="password" placeholder="••••" readOnly />
+            </div>
 
-        <button className="btn-enter" onClick={handleEnterArena}>
-          ENTER ARENA
-        </button>
+            <button className="btn-enter" onClick={handleEnterArena}>
+              ENTER ARENA
+            </button>
+          </>
+        ) : (
+          <form onSubmit={handleEmailSubmit} className="email-form">
+            <div className="form-group">
+              <input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+            <button type="submit" className="btn-enter">
+              SEND MAGIC LINK
+            </button>
+            <button
+              type="button"
+              className="btn-back"
+              onClick={() => {
+                setShowEmailForm(false);
+                setEmail("");
+              }}
+            >
+              ← BACK
+            </button>
+          </form>
+        )}
 
         <div className="info-text">
           <div>
@@ -38,7 +79,7 @@ export default function Cover() {
               New row violates row-level security policy for table 'players'
             </span>
           </div>
-          <div>New player? Enter your name + any code, create your profile</div>
+          <div>New player? Enter your email + magic link, create your profile</div>
         </div>
       </div>
 
