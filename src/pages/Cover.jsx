@@ -1,10 +1,9 @@
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import "./Cover.css";
 
 export default function Cover() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [email, setEmail] = useState("");
   const [showEmailForm, setShowEmailForm] = useState(false);
 
@@ -23,6 +22,8 @@ export default function Cover() {
     <div className="cover-container">
       <div className="background"></div>
       <div className="grid-overlay"></div>
+      
+      {/* Badminton Court Visualization */}
       <div className="badminton-court">
         <div className="court-inner"></div>
       </div>
@@ -74,12 +75,8 @@ export default function Cover() {
         )}
 
         <div className="info-text">
-          <div>
-            <span className="highlight">
-              New row violates row-level security policy for table 'players'
-            </span>
-          </div>
-          <div>New player? Enter your email + magic link, create your profile</div>
+          <div>✓ Magic link authentication - No password needed</div>
+          <div>New player? Email verified, profile created automatically</div>
         </div>
       </div>
 
