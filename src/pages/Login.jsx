@@ -25,7 +25,7 @@ export default function Login() {
         
         // Optional: Auto-redirect after 3 seconds
         setTimeout(() => {
-          navigate("/dashboard");
+          navigate("/auth/callback");
         }, 3000);
       } else {
         setError(response?.message || "Failed to send magic link");
@@ -70,7 +70,7 @@ export default function Login() {
             className="btn-magic-link"
             disabled={loading}
           >
-            {loading ? "Sending..." : "Send Magic Link"}
+            {loading ? "Sending..." : "ENTER ARENA"}
           </button>
         </form>
 
