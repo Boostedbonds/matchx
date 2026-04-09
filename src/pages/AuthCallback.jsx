@@ -1,48 +1,88 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { supabase } from "./supabase";
 
-export default function AuthCallback() {
-  const navigate = useNavigate();
-  const { user, loading } = useAuth();
+export async function loginWithMagicLink(email) {
+  try {
+    const { error, data } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      }
+    });
 
-  useEffect(() => {
-    if (!loading && user) {
-      // User authenticated, redirect to dashboard
-      navigate("/dashboard", { replace: true });
+    if (error) {
+      return { 
+        success: false, 
+        message: error.message || "Failed to send magic link" 
+      };
     }
-  }, [user, loading, navigate]);
 
-  return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      height: "100vh",
-      flexDirection: "column",
-      background: "#0a0a0a",
-      color: "#ffc800",
-      fontFamily: "Arial, sans-serif"
-    }}>
-      <h2>Verifying your login...</h2>
-      <p>Please wait while we authenticate you.</p>
-      <div style={{ marginTop: "20px" }}>
-        <div style={{
-          width: "40px",
-          height: "40px",
-          border: "4px solid #ffc800",
-          borderTop: "4px solid transparent",
-          borderRadius: "50%",
-          animation: "spin 1s linear infinite",
-          margin: "0 auto"
-        }}></div>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    </div>
-  );
+    return { 
+      success: true, 
+      message: "Magic link sent! Check your email",
+      data 
+    };
+  } catch (err) {
+    return { 
+      success: false, 
+      message: err.message || "An error occurred" 
+    };
+  }
+}
+
+export async function createPlayerProfile(userId, email, playerName = null) {
+  try {
+    // Check if player already exists
+    const { data: existing } = await supabase
+      .from("players")
+      .select("id")
+      .eq("user_id", userId)
+      .single();
+
+    if (existing) {
+      return { success: true, message: "Profile already exists" };
+    }
+
+    // Create new player profile
+    const { data, error } = await supabase
+      .from("players")
+      .insert([
+        {
+          user_id: userId,
+          email: email,
+          name: playerName || email.split("@")[0], // Use part of email as default name
+          skill_level: "beginner",
+          created_at: new Date().toISOString()
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error("Profile creation error:", error);
+      return { 
+        success: false, 
+        message: error.message || "Failed to create profile" 
+      };
+    }
+
+    return { 
+      success: true, 
+      message: "Profile created successfully",
+      data: data?.[0]
+    };
+  } catch (err) {
+    console.error("Error creating profile:", err);
+    return { 
+      success: false, 
+      message: err.message || "An error occurred" 
+    };
+  }
+}
+
+export async function logout() {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    console.error("Logout error:", error);
+    return { success: false, message: error.message };
+  }
+  return { success: true, message: "Logged out successfully" };
 }
