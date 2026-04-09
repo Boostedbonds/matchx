@@ -10,18 +10,21 @@ export async function loginWithMagicLink(email) {
     });
 
     if (error) {
+      console.error("Magic link error:", error);
       return { 
         success: false, 
         message: error.message || "Failed to send magic link" 
       };
     }
 
+    console.log("Magic link sent to:", email);
     return { 
       success: true, 
-      message: "Magic link sent! Check your email",
+      message: "Check your email for the magic link!",
       data 
     };
   } catch (err) {
+    console.error("Login error:", err);
     return { 
       success: false, 
       message: err.message || "An error occurred" 
@@ -29,60 +32,77 @@ export async function loginWithMagicLink(email) {
   }
 }
 
-export async function createPlayerProfile(userId, email, playerName = null) {
+export async function createOrUpdatePlayer(userId, email) {
   try {
-    // Check if player already exists
-    const { data: existing } = await supabase
+    // First, check if player already exists
+    const { data: existing, error: checkError } = await supabase
       .from("players")
       .select("id")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error("Check error:", checkError);
+      throw checkError;
+    }
+
+    // If player exists, return success
     if (existing) {
+      console.log("Player profile already exists");
       return { success: true, message: "Profile already exists" };
     }
 
-    // Create new player profile
+    // Create new player profile with minimal data
+    const playerName = email.split("@")[0]; // Use part of email as name
+
     const { data, error } = await supabase
       .from("players")
       .insert([
         {
           user_id: userId,
           email: email,
-          name: playerName || email.split("@")[0], // Use part of email as default name
-          skill_level: "beginner",
-          created_at: new Date().toISOString()
+          name: playerName,
+          skill_level: "beginner"
         }
       ])
-      .select();
+      .select()
+      .single();
 
     if (error) {
-      console.error("Profile creation error:", error);
+      console.error("Insert error:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      
+      // Return error but don't throw - user can still access dashboard
       return { 
         success: false, 
-        message: error.message || "Failed to create profile" 
+        message: `Could not save profile: ${error.message}`,
+        data: null
       };
     }
 
+    console.log("Player profile created:", data);
     return { 
       success: true, 
       message: "Profile created successfully",
-      data: data?.[0]
+      data 
     };
   } catch (err) {
-    console.error("Error creating profile:", err);
+    console.error("Unexpected error:", err);
     return { 
       success: false, 
-      message: err.message || "An error occurred" 
+      message: err.message || "An unexpected error occurred" 
     };
   }
 }
 
 export async function logout() {
-  const { error } = await supabase.auth.signOut();
-  if (error) {
-    console.error("Logout error:", error);
-    return { success: false, message: error.message };
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    return { success: true, message: "Logged out successfully" };
+  } catch (err) {
+    console.error("Logout error:", err);
+    return { success: false, message: err.message };
   }
-  return { success: true, message: "Logged out successfully" };
 }
