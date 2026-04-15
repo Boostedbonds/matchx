@@ -22,7 +22,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: 
+  background:
     radial-gradient(circle at 80% 20%, rgba(255, 200, 0, 0.2) 0%, transparent 50%),
     radial-gradient(circle at 20% 50%, rgba(255, 200, 0, 0.15) 0%, transparent 50%),
     #0a0a0a;
@@ -35,11 +35,21 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: 
+  background-image:
     linear-gradient(rgba(255, 200, 0, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 200, 0, 0.04) 1px, transparent 1px);
   background-size: 40px 40px;
   z-index: 1;
+  animation: gridPulse 8s ease-in-out infinite;
+}
+
+@keyframes gridPulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 /* Badminton Court SVG Lines */
@@ -52,6 +62,16 @@
   z-index: 2;
   opacity: 0.7;
   pointer-events: none;
+  animation: courtGlow 6s ease-in-out infinite;
+}
+
+@keyframes courtGlow {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.85;
+  }
 }
 
 /* Badminton Court Circles */
@@ -64,11 +84,21 @@
   height: 600px;
   z-index: 2;
   pointer-events: none;
+  animation: courtFloat 8s ease-in-out infinite;
+}
+
+@keyframes courtFloat {
+  0%, 100% {
+    transform: translateY(-50%);
+  }
+  50% {
+    transform: translateY(calc(-50% - 20px));
+  }
 }
 
 /* Outer court circle with glow */
 .badminton-court::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -77,7 +107,7 @@
   height: 600px;
   border: 3px solid rgba(255, 200, 0, 0.6);
   border-radius: 50%;
-  box-shadow: 
+  box-shadow:
     0 0 60px rgba(255, 200, 0, 0.5),
     0 0 100px rgba(255, 150, 0, 0.2),
     inset 0 0 60px rgba(255, 200, 0, 0.15);
@@ -85,7 +115,7 @@
 
 /* Middle court circle */
 .badminton-court::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -94,7 +124,7 @@
   height: 350px;
   border: 2px solid rgba(255, 200, 0, 0.7);
   border-radius: 50%;
-  box-shadow: 
+  box-shadow:
     0 0 40px rgba(255, 200, 0, 0.5),
     inset 0 0 40px rgba(255, 200, 0, 0.15);
 }
@@ -146,11 +176,25 @@
   font-weight: 900;
   letter-spacing: 4px;
   margin-bottom: 10px;
-  text-shadow: 
+  text-shadow:
     0 0 20px rgba(255, 200, 0, 0.8),
     0 0 40px rgba(255, 150, 0, 0.4);
   line-height: 1;
   color: #ffffff;
+  animation: titleGlow 4s ease-in-out infinite;
+}
+
+@keyframes titleGlow {
+  0%, 100% {
+    text-shadow:
+      0 0 20px rgba(255, 200, 0, 0.8),
+      0 0 40px rgba(255, 150, 0, 0.4);
+  }
+  50% {
+    text-shadow:
+      0 0 30px rgba(255, 200, 0, 0.95),
+      0 0 60px rgba(255, 150, 0, 0.6);
+  }
 }
 
 .title .x {
@@ -222,7 +266,7 @@
 
 .btn-enter:hover:not(:disabled) {
   background: #ffdc00;
-  box-shadow: 
+  box-shadow:
     0 0 30px rgba(255, 200, 0, 0.8),
     0 0 50px rgba(255, 150, 0, 0.4);
   transform: translateY(-2px);
@@ -340,5 +384,30 @@
 
   .content {
     max-width: 90%;
+  }
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 2.2rem;
+    letter-spacing: 2px;
+  }
+
+  .header-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+  }
+
+  .badminton-court {
+    width: 250px;
+    height: 250px;
+  }
+
+  .content {
+    padding: 20px;
   }
 }

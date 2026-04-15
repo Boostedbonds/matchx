@@ -6,11 +6,17 @@ import Dashboard from "./pages/Dashboard";
 function AppContent() {
   const { user } = useAuth();
 
-  return (
-    <Layout>
-      {user ? <Dashboard /> : <Cover />}
-    </Layout>
-  );
+  // Only show Layout (with sidebar) for authenticated users
+  if (user) {
+    return (
+      <Layout>
+        <Dashboard />
+      </Layout>
+    );
+  }
+
+  // Show Cover page without sidebar for unauthenticated users
+  return <Cover />;
 }
 
 function App() {
