@@ -1,47 +1,69 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginWithMagicLink } from "../services/auth";
+import { loginOrRegister, loginWithMagicLink } from "../services/auth";
 import "./Login.css";
 
-// 🔐 CHANGE THIS CODE
-const ACCESS_CODE = "MATCHX2026";
-
 export default function Login() {
+  const [activeTab, setActiveTab] = useState("code"); // "code" | "magic"
+  const [name, setName] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  async function handleLogin(e) {
+  // ==============================
+  // 🚀 ACCESS CODE LOGIN
+  // ==============================
+  async function handleAccessCodeLogin(e) {
     e.preventDefault();
     setLoading(true);
     setError("");
     setMessage("");
 
     try {
-      // ✅ ACCESS CODE LOGIN (BETA MODE)
-      if (email.trim() === ACCESS_CODE) {
-        localStorage.setItem("access_granted", "true");
-        setMessage("✓ Access granted");
-        
-        // redirect instantly
-        navigate("/dashboard"); // change if your route is different
-        return;
+      const result = await loginOrRegister(name, accessCode);
+
+      if (result?.player) {
+        const msg = result.isNew
+          ? `✓ Welcome, ${result.player.name}! Profile created.`
+          : `✓ Welcome back, ${result.player.name}!`;
+        setMessage(msg);
+
+        // Small delay so user sees the message, then navigate
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 800);
       }
+    } catch (err) {
+      setError(err.message || "Login failed. Please try again.");
+      console.error("Access code login error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      // ✅ EMAIL LOGIN (SUPABASE)
+  // ==============================
+  // 📧 MAGIC LINK LOGIN
+  // ==============================
+  async function handleMagicLinkLogin(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
       const response = await loginWithMagicLink(email);
-
       if (response?.success) {
-        setMessage("✓ Magic link sent! Check your email");
+        setMessage("✓ Magic link sent! Check your email.");
         setEmail("");
       } else {
-        setError(response?.message || "Failed to send magic link");
+        setError(response?.message || "Failed to send magic link.");
       }
     } catch (err) {
       setError(err.message || "Error sending magic link. Please try again.");
-      console.error("Login error:", err);
+      console.error("Magic link error:", err);
     } finally {
       setLoading(false);
     }
@@ -53,6 +75,7 @@ export default function Login() {
       <div className="login-grid-overlay"></div>
 
       <div className="login-content">
+        {/* Header */}
         <div className="login-header">
           <div className="login-label">🏸 Badminton Live Scoring Platform</div>
           <h1 className="login-title">
@@ -60,36 +83,103 @@ export default function Login() {
           </h1>
         </div>
 
-        <form onSubmit={handleLogin} className="login-form">
-          <div className="form-group">
-            <label htmlFor="email">Enter your email</label>
-            <input
-              id="email"
-              type="text"   // 👈 changed from email → allows access code input
-              placeholder="your@email.com or access code"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-
-          <button 
-            type="submit" 
-            className="btn-magic-link"
-            disabled={loading}
+        {/* Tabs */}
+        <div className="login-tabs">
+          <button
+            className={`tab-btn ${activeTab === "code" ? "active" : ""}`}
+            onClick={() => { setActiveTab("code"); setError(""); setMessage(""); }}
+            type="button"
           >
-            {loading ? "Sending..." : "ENTER ARENA"}
+            ACCESS CODE
           </button>
-        </form>
+          <button
+            className={`tab-btn ${activeTab === "magic" ? "active" : ""}`}
+            onClick={() => { setActiveTab("magic"); setError(""); setMessage(""); }}
+            type="button"
+          >
+            MAGIC LINK
+          </button>
+        </div>
 
+        {/* ACCESS CODE FORM */}
+        {activeTab === "code" && (
+          <form onSubmit={handleAccessCodeLogin} className="login-form">
+            <div className="form-group">
+              <label htmlFor="name">YOUR NAME</label>
+              <input
+                id="name"
+                type="text"
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="accessCode">ACCESS CODE</label>
+              <input
+                id="accessCode"
+                type="password"
+                placeholder="••••"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="btn-magic-link"
+              disabled={loading}
+            >
+              {loading ? "Entering..." : "ENTER ARENA"}
+            </button>
+
+            <p className="login-hint">
+              New player? Enter your name + any code to{" "}
+              <strong>CREATE YOUR PROFILE</strong>
+            </p>
+          </form>
+        )}
+
+        {/* MAGIC LINK FORM */}
+        {activeTab === "magic" && (
+          <form onSubmit={handleMagicLinkLogin} className="login-form">
+            <div className="form-group">
+              <label htmlFor="email">YOUR EMAIL</label>
+              <input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="btn-magic-link"
+              disabled={loading}
+            >
+              {loading ? "Sending..." : "SEND MAGIC LINK"}
+            </button>
+
+            <p className="login-hint">
+              We'll send you a magic link to sign in. No password needed.
+            </p>
+          </form>
+        )}
+
+        {/* Messages */}
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
-        <div className="login-info">
-          <p>We'll send you a magic link to sign in. No password needed.</p>
-        </div>
-
+        {/* Footer */}
         <div className="login-footer">
           <span onClick={() => navigate("/")} className="back-link">
             ← Back to home
