@@ -1,17 +1,23 @@
-import { AuthProvider } from "./context/AuthContext";
-import { useAuth } from "./context/AuthContext";
-import { Layout } from "./components/Layout";
-
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import Layout from "./components/Layout";
 import Cover from "./pages/Cover";
 import Dashboard from "./pages/Dashboard";
 
-function App() {
+function AppContent() {
   const { user } = useAuth();
 
   return (
     <Layout>
       {user ? <Dashboard /> : <Cover />}
     </Layout>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
