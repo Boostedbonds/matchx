@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { loginWithMagicLink } from "../services/auth";
 import "./Login.css";
 
+// 🔐 CHANGE THIS CODE
+const ACCESS_CODE = "MATCHX2026";
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,16 +20,22 @@ export default function Login() {
     setMessage("");
 
     try {
+      // ✅ ACCESS CODE LOGIN (BETA MODE)
+      if (email.trim() === ACCESS_CODE) {
+        localStorage.setItem("access_granted", "true");
+        setMessage("✓ Access granted");
+        
+        // redirect instantly
+        navigate("/dashboard"); // change if your route is different
+        return;
+      }
+
+      // ✅ EMAIL LOGIN (SUPABASE)
       const response = await loginWithMagicLink(email);
-      
+
       if (response?.success) {
         setMessage("✓ Magic link sent! Check your email");
         setEmail("");
-        
-        // Optional: Auto-redirect after 3 seconds
-        setTimeout(() => {
-          navigate("/auth/callback");
-        }, 3000);
       } else {
         setError(response?.message || "Failed to send magic link");
       }
@@ -56,8 +65,8 @@ export default function Login() {
             <label htmlFor="email">Enter your email</label>
             <input
               id="email"
-              type="email"
-              placeholder="your@email.com"
+              type="text"   // 👈 changed from email → allows access code input
+              placeholder="your@email.com or access code"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

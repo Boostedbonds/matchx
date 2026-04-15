@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { loginOrRegister } from "../services/supabase";
+import { loginOrRegister } from "../services/auth";
 
 function Landing({ onStart }) {
   const [name,    setName]    = useState("");

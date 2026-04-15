@@ -1,5 +1,18 @@
-import { supabase } from "./supabase";
+import { createClient } from "@supabase/supabase-js";
 
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Supabase env variables are missing");
+}
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+
+// ==============================
+// 🔐 EMAIL LOGIN (UNCHANGED)
+// ==============================
 export async function loginWithMagicLink(email) {
   try {
     const { error, data } = await supabase.auth.signInWithOtp({
@@ -17,7 +30,6 @@ export async function loginWithMagicLink(email) {
       };
     }
 
-    console.log("Magic link sent to:", email);
     return { 
       success: true, 
       message: "Check your email for the magic link!",
@@ -32,9 +44,85 @@ export async function loginWithMagicLink(email) {
   }
 }
 
+
+// ==============================
+// 🚀 ACCESS CODE LOGIN (MAIN FIX)
+// ==============================
+export async function loginOrRegister(name, code) {
+  try {
+    const cleanName = name.trim();
+    const cleanCode = code.trim();
+
+    if (!cleanName) {
+      throw new Error("Name is required");
+    }
+
+    if (!cleanCode) {
+      throw new Error("Access code is required");
+    }
+
+    // 🔍 Check if player already exists with same name + code
+    const { data: existingPlayer, error: fetchError } = await supabase
+      .from("players")
+      .select("*")
+      .eq("name", cleanName)
+      .eq("access_code", cleanCode)
+      .maybeSingle();
+
+    if (fetchError && fetchError.code !== "PGRST116") {
+      console.error("Fetch error:", fetchError);
+      throw fetchError;
+    }
+
+    // ✅ Existing user → LOGIN
+    if (existingPlayer) {
+      localStorage.setItem("player_id", existingPlayer.id);
+      localStorage.setItem("player_name", existingPlayer.name);
+
+      return {
+        player: existingPlayer,
+        isNew: false
+      };
+    }
+
+    // 🆕 New user → CREATE
+    const { data: newPlayer, error: insertError } = await supabase
+      .from("players")
+      .insert([
+        {
+          name: cleanName,
+          access_code: cleanCode,
+          skill_level: "beginner"
+        }
+      ])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error("Insert error:", insertError);
+      throw new Error(insertError.message);
+    }
+
+    localStorage.setItem("player_id", newPlayer.id);
+    localStorage.setItem("player_name", newPlayer.name);
+
+    return {
+      player: newPlayer,
+      isNew: true
+    };
+
+  } catch (err) {
+    console.error("Login/Register error:", err);
+    throw new Error(err.message || "Login failed");
+  }
+}
+
+
+// ==============================
+// 👤 EMAIL PLAYER PROFILE (UNCHANGED)
+// ==============================
 export async function createOrUpdatePlayer(userId, email) {
   try {
-    // First, check if player already exists
     const { data: existing, error: checkError } = await supabase
       .from("players")
       .select("id")
@@ -42,18 +130,14 @@ export async function createOrUpdatePlayer(userId, email) {
       .maybeSingle();
 
     if (checkError && checkError.code !== 'PGRST116') {
-      console.error("Check error:", checkError);
       throw checkError;
     }
 
-    // If player exists, return success
     if (existing) {
-      console.log("Player profile already exists");
       return { success: true, message: "Profile already exists" };
     }
 
-    // Create new player profile with minimal data
-    const playerName = email.split("@")[0]; // Use part of email as name
+    const playerName = email.split("@")[0];
 
     const { data, error } = await supabase
       .from("players")
@@ -69,40 +153,41 @@ export async function createOrUpdatePlayer(userId, email) {
       .single();
 
     if (error) {
-      console.error("Insert error:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
-      
-      // Return error but don't throw - user can still access dashboard
       return { 
         success: false, 
-        message: `Could not save profile: ${error.message}`,
+        message: error.message,
         data: null
       };
     }
 
-    console.log("Player profile created:", data);
     return { 
       success: true, 
       message: "Profile created successfully",
       data 
     };
+
   } catch (err) {
-    console.error("Unexpected error:", err);
     return { 
       success: false, 
-      message: err.message || "An unexpected error occurred" 
+      message: err.message || "Unexpected error"
     };
   }
 }
 
+
+// ==============================
+// 🚪 LOGOUT
+// ==============================
 export async function logout() {
   try {
+    localStorage.removeItem("player_id");
+    localStorage.removeItem("player_name");
+
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+
     return { success: true, message: "Logged out successfully" };
   } catch (err) {
-    console.error("Logout error:", err);
     return { success: false, message: err.message };
   }
 }
