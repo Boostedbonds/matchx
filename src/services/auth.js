@@ -9,6 +9,11 @@ if (!supabaseUrl || !supabaseKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
+// ==============================
+// 🔑 MASTER ACCESS CODE
+// ==============================
+const MASTER_CODE = "2011";
+
 
 // ==============================
 // 🔐 EMAIL LOGIN (UNCHANGED)
@@ -46,7 +51,7 @@ export async function loginWithMagicLink(email) {
 
 
 // ==============================
-// 🚀 ACCESS CODE LOGIN (MAIN FIX)
+// 🚀 ACCESS CODE LOGIN
 // ==============================
 export async function loginOrRegister(name, code) {
   try {
@@ -61,12 +66,16 @@ export async function loginOrRegister(name, code) {
       throw new Error("Access code is required");
     }
 
-    // 🔍 Check if player already exists with same name + code
+    // 🔒 Validate master access code first
+    if (cleanCode !== MASTER_CODE) {
+      throw new Error("Invalid access code. Please try again.");
+    }
+
+    // 🔍 Check if player already exists with this name
     const { data: existingPlayer, error: fetchError } = await supabase
       .from("players")
       .select("*")
       .eq("name", cleanName)
-      .eq("access_code", cleanCode)
       .maybeSingle();
 
     if (fetchError && fetchError.code !== "PGRST116") {
