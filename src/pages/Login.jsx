@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { loginOrRegister, loginWithMagicLink } from "../services/auth";
 import "./Login.css";
 
@@ -11,7 +11,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const navigate = useNavigate();
+
+  const { setPlayer } = useAuth();
 
   // ==============================
   // 🚀 ACCESS CODE LOGIN
@@ -31,10 +32,8 @@ export default function Login() {
           : `✓ Welcome back, ${result.player.name}!`;
         setMessage(msg);
 
-        // Small delay so user sees the message, then navigate
-        setTimeout(() => {
-          navigate("/dashboard");
-        }, 800);
+        // ✅ Update AuthContext so App.jsx re-renders to Dashboard
+        setPlayer({ id: result.player.id, name: result.player.name });
       }
     } catch (err) {
       setError(err.message || "Login failed. Please try again.");
@@ -130,11 +129,7 @@ export default function Login() {
               />
             </div>
 
-            <button
-              type="submit"
-              className="btn-magic-link"
-              disabled={loading}
-            >
+            <button type="submit" className="btn-magic-link" disabled={loading}>
               {loading ? "Entering..." : "ENTER ARENA"}
             </button>
 
@@ -161,11 +156,7 @@ export default function Login() {
               />
             </div>
 
-            <button
-              type="submit"
-              className="btn-magic-link"
-              disabled={loading}
-            >
+            <button type="submit" className="btn-magic-link" disabled={loading}>
               {loading ? "Sending..." : "SEND MAGIC LINK"}
             </button>
 
@@ -181,9 +172,7 @@ export default function Login() {
 
         {/* Footer */}
         <div className="login-footer">
-          <span onClick={() => navigate("/")} className="back-link">
-            ← Back to home
-          </span>
+          <span className="back-link">← Back to home</span>
         </div>
       </div>
     </div>

@@ -1,25 +1,24 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Layout from "./components/Layout";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 
 function AppContent() {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated, loading } = useAuth();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Simulate checking auth state
-    const timer = setTimeout(() => setLoading(false), 300);
+    const timer = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(timer);
   }, []);
 
-  if (loading) {
+  if (loading || !ready) {
     return <div style={{ background: "#000", height: "100vh" }} />;
   }
 
-  // Show Dashboard with sidebar for authenticated users
-  if (user) {
+  // ✅ Authenticated = Supabase session OR localStorage player
+  if (isAuthenticated) {
     return (
       <Layout>
         <Dashboard />
@@ -27,7 +26,6 @@ function AppContent() {
     );
   }
 
-  // Show Landing page (with new dual-mode login) for unauthenticated users
   return <Landing />;
 }
 
