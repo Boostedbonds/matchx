@@ -22,13 +22,11 @@ export default function Dashboard() {
         .from("matches")
         .select("*")
         .eq("status", "live");
-
       const { data: recent } = await supabase
         .from("matches")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(10);
-
       setLiveMatches(live || []);
       setRecentMatches(recent || []);
     } catch (err) {
@@ -38,25 +36,55 @@ export default function Dashboard() {
     }
   }
 
-  function MatchItem({ match }) {
+  function MatchCard({ match, isLive = false }) {
+    const getStatusBadge = () => {
+      const status = match.status || "completed";
+      if (status === "live") return { text: "LIVE", class: "badge-live" };
+      if (status === "completed") return { text: "COMPLETED", class: "badge-completed" };
+      return { text: status.toUpperCase(), class: "badge-default" };
+    };
+
+    const badge = getStatusBadge();
+
     return (
       <div
-        className="match-item"
+        className="match-card"
         onClick={() => navigate(`/match/${match.id}`)}
       >
-        <div className="match-info">
-          <strong className="match-title">
-            {match.player1_name || "Player 1"} vs{" "}
-            {match.player2_name || "Player 2"}
-          </strong>
-          <div className="match-date">
-            {match.created_at
-              ? new Date(match.created_at).toLocaleString()
-              : ""}
+        <div className="match-card-header">
+          <div className="match-players">
+            <div className="player-badge">
+              {(match.player1_name || "P1").slice(0, 2).toUpperCase()}
+            </div>
+            <span className="vs-text">VS</span>
+            <div className="player-badge">
+              {(match.player2_name || "P2").slice(0, 2).toUpperCase()}
+            </div>
+          </div>
+          <div className={`match-status-badge ${badge.class}`}>
+            {badge.text}
           </div>
         </div>
-        <div className={`match-status ${match.status || "completed"}`}>
-          {match.status || "completed"}
+
+        <div className="match-card-content">
+          <h3 className="match-title">
+            {match.player1_name || "Player 1"} vs{" "}
+            {match.player2_name || "Player 2"}
+          </h3>
+          <div className="match-meta">
+            <span className="match-court">
+              {match.court_name || "Court"}
+            </span>
+            <span className="match-date">
+              {match.created_at
+                ? new Date(match.created_at).toLocaleDateString()
+                : ""}
+            </span>
+          </div>
+        </div>
+
+        <div className="match-card-footer">
+          <button className="btn-view">VIEW MATCH</button>
         </div>
       </div>
     );
@@ -64,52 +92,69 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-container">
+      {/* HEADER */}
       <div className="dashboard-header">
-        <h1>Dashboard</h1>
-        <div className="user-info">
-          Welcome, <span className="user-email">{user?.email}</span>
+        <div className="header-content">
+          <h1 className="dashboard-title">Dashboard</h1>
+          <p className="header-subtitle">
+            Welcome, <span className="user-email">{user?.email}</span>
+          </p>
         </div>
       </div>
 
-      {loading && <div className="loading">Loading matches...</div>}
+      {loading && <div className="loading-state">Loading matches...</div>}
 
-      {/* LIVE MATCHES */}
+      {/* LIVE MATCHES SECTION */}
       {!loading && liveMatches.length > 0 && (
-        <section className="matches-section">
-          <h2 className="section-title">🔥 Live Matches</h2>
-          <div className="matches-list">
-            {liveMatches.map((m, i) => (
-              <MatchItem key={m.id || i} match={m} />
+        <section className="matches-section live-section">
+          <div className="section-header">
+            <h2 className="section-title">
+              <span className="section-icon">⚡</span> Live Matches
+            </h2>
+            <span className="match-count">{liveMatches.length} LIVE</span>
+          </div>
+          <div className="matches-grid">
+            {liveMatches.map((match, i) => (
+              <MatchCard key={match.id || i} match={match} isLive={true} />
             ))}
           </div>
         </section>
       )}
 
-      {/* RECENT MATCHES */}
-      {!loading && liveMatches.length === 0 && recentMatches.length > 0 && (
-        <section className="matches-section">
-          <h2 className="section-title">📜 Recent Matches</h2>
-          <div className="matches-list">
-            {recentMatches.map((m, i) => (
-              <MatchItem key={m.id || i} match={m} />
+      {/* RECENT MATCHES SECTION */}
+      {!loading && recentMatches.length > 0 && (
+        <section className="matches-section recent-section">
+          <div className="section-header">
+            <h2 className="section-title">
+              <span className="section-icon">📋</span> Recent Matches
+            </h2>
+            <span className="match-count">{recentMatches.length} TOTAL</span>
+          </div>
+          <div className="matches-grid">
+            {recentMatches.map((match, i) => (
+              <MatchCard key={match.id || i} match={match} isLive={false} />
             ))}
           </div>
         </section>
       )}
 
-      {/* EMPTY */}
+      {/* EMPTY STATE */}
       {!loading &&
         liveMatches.length === 0 &&
         recentMatches.length === 0 && (
-          <div className="empty-state">
-            <p>No matches yet. Start one to see it here.</p>
-            <button
-              className="btn-create-match"
-              onClick={() => navigate("/match/new")}
-            >
-              Create New Match
-            </button>
-          </div>
+          <section className="empty-state-container">
+            <div className="empty-state">
+              <div className="empty-icon">🎾</div>
+              <h2>No Matches Yet</h2>
+              <p>Start your first match to see it here.</p>
+              <button
+                className="btn-create-match"
+                onClick={() => navigate("/match/new")}
+              >
+                ⚡ CREATE NEW MATCH
+              </button>
+            </div>
+          </section>
         )}
     </div>
   );
