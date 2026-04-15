@@ -9,27 +9,36 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     getUser();
-
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user || null);
       }
     );
-
     return () => listener.subscription.unsubscribe();
   }, []);
 
   async function getUser() {
     const {
-      data: { user }
+      data: { user },
     } = await supabase.auth.getUser();
-
     setUser(user || null);
     setLoading(false);
   }
 
+  async function logout() {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      setUser(null);
+      return true;
+    } catch (error) {
+      console.error("Logout error:", error.message);
+      return false;
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -40,19 +40,152 @@ function Layout({ children }) {
   ];
 
   const handleLogout = async () => {
-    await logout();
-    navigate("/login");
+    const success = await logout();
+    if (success) {
+      navigate("/");
+    }
   };
 
   return (
     <div className="layout-wrapper">
       {/* SIDEBAR */}
-      <aside className={`sidebar ${sidebarOpen ? "open" : "closed"} ${mobileMenuOpen ? "mobile-open" : ""}`}>
+      <aside
+        className={`sidebar ${sidebarOpen ? "open" : "closed"} ${
+          mobileMenuOpen ? "mobile-open" : ""
+        }`}
+      >
         <div className="sidebar-content">
-          {/* BRANDING */}
+          {/* BRANDING - PREMIUM LOGO */}
           <div className="sidebar-branding">
             <div className="logo">
-              <span className="logo-text">MATCHX</span>
+              <svg
+                viewBox="0 0 200 80"
+                xmlns="http://www.w3.org/2000/svg"
+                className="logo-svg"
+              >
+                {/* Glow filters */}
+                <defs>
+                  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                    <feMerge>
+                      <feMergeNode in="coloredBlur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                  <linearGradient
+                    id="gradientCyan"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="100%"
+                  >
+                    <stop offset="0%" stopColor="#00d4ff" />
+                    <stop offset="100%" stopColor="#00ff88" />
+                  </linearGradient>
+                  <linearGradient
+                    id="gradientGold"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="100%"
+                  >
+                    <stop offset="0%" stopColor="#ffd700" />
+                    <stop offset="100%" stopColor="#ffaa00" />
+                  </linearGradient>
+                </defs>
+
+                {/* M */}
+                <text
+                  x="10"
+                  y="55"
+                  fontSize="48"
+                  fontWeight="900"
+                  fontFamily="'Courier Prime', monospace"
+                  fill="url(#gradientCyan)"
+                  filter="url(#glow)"
+                >
+                  M
+                </text>
+
+                {/* A */}
+                <text
+                  x="50"
+                  y="55"
+                  fontSize="48"
+                  fontWeight="900"
+                  fontFamily="'Courier Prime', monospace"
+                  fill="url(#gradientCyan)"
+                  filter="url(#glow)"
+                >
+                  A
+                </text>
+
+                {/* T */}
+                <text
+                  x="85"
+                  y="55"
+                  fontSize="48"
+                  fontWeight="900"
+                  fontFamily="'Courier Prime', monospace"
+                  fill="url(#gradientCyan)"
+                  filter="url(#glow)"
+                >
+                  T
+                </text>
+
+                {/* C */}
+                <text
+                  x="115"
+                  y="55"
+                  fontSize="48"
+                  fontWeight="900"
+                  fontFamily="'Courier Prime', monospace"
+                  fill="url(#gradientCyan)"
+                  filter="url(#glow)"
+                >
+                  C
+                </text>
+
+                {/* H */}
+                <text
+                  x="145"
+                  y="55"
+                  fontSize="48"
+                  fontWeight="900"
+                  fontFamily="'Courier Prime', monospace"
+                  fill="url(#gradientCyan)"
+                  filter="url(#glow)"
+                >
+                  H
+                </text>
+
+                {/* X - Premium X with glow and gold accent */}
+                <g className="logo-x-wrapper">
+                  <text
+                    x="175"
+                    y="55"
+                    fontSize="48"
+                    fontWeight="900"
+                    fontFamily="'Courier Prime', monospace"
+                    fill="url(#gradientGold)"
+                    filter="url(#glow)"
+                    className="logo-x"
+                  >
+                    X
+                  </text>
+                  {/* Animated glow circle around X */}
+                  <circle
+                    cx="190"
+                    cy="30"
+                    r="18"
+                    fill="none"
+                    stroke="url(#gradientGold)"
+                    strokeWidth="1.5"
+                    opacity="0.4"
+                    className="x-glow-ring"
+                  />
+                </g>
+              </svg>
             </div>
             <p className="tagline">BADMINTON PLATFORM</p>
           </div>
@@ -91,7 +224,11 @@ function Layout({ children }) {
                 <p className="user-status">Online</p>
               </div>
             </div>
-            <button className="btn-logout" onClick={handleLogout} title="Logout">
+            <button
+              className="btn-logout"
+              onClick={handleLogout}
+              title="Logout"
+            >
               🚪
             </button>
           </div>
@@ -118,7 +255,11 @@ function Layout({ children }) {
       )}
 
       {/* MAIN CONTENT */}
-      <main className={`main-content ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
+      <main
+        className={`main-content ${
+          sidebarOpen ? "sidebar-open" : "sidebar-closed"
+        }`}
+      >
         {children}
       </main>
     </div>
