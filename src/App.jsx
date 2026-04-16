@@ -1,24 +1,21 @@
 /**
  * App.jsx
- * Save to: src/App.jsx
- *
- * Fixed: replaces hardcoded <Dashboard /> with state-based page routing.
- * All sidebar nav items now work. No react-router-dom needed.
+ * src/App.jsx
  */
 
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
 // ── Pages ────────────────────────────────────────────────────────────────────
-import Landing      from "./pages/Landing";
-import Dashboard    from "./pages/Dashboard";
-import Tournament   from "./pages/Tournament";
-import Rankings     from "./pages/Rankings";
-import Players      from "./pages/Players";
-import Profile      from "./pages/Profile";
-import Admin        from "./pages/Admin";
-import Setup        from "./pages/Setup";
-import MatchScorer  from "./pages/MatchScorer";
+import Landing     from "./pages/Landing";
+import Dashboard   from "./pages/Dashboard";
+import Tournament  from "./pages/Tournament";
+import Rankings    from "./pages/Rankings";
+import Players     from "./pages/Players";
+import Profile     from "./pages/Profile";
+import Admin       from "./pages/Admin";
+import Setup       from "./pages/Setup";
+import MatchScorer from "./pages/MatchScorer";
 
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 import Sidebar from "./components/Sidebar";
@@ -26,10 +23,12 @@ import Sidebar from "./components/Sidebar";
 // ─────────────────────────────────────────────────────────────────────────────
 
 function AppContent() {
-  const { isAuthenticated, loading, user, player, signOut } = useAuth();
+  const { isAuthenticated, loading, user, player, logout, isAdmin } = useAuth();
+
   const [ready,       setReady]       = useState(false);
   const [page,        setPage]        = useState("dashboard");
-  const [activeMatch, setActiveMatch] = useState(null); // holds match data when scorer is open
+  const [activeMatch, setActiveMatch] = useState(null);
+  const [activeRole,  setActiveRole]  = useState(null); // "scorer" | "spectator" | null
 
   // Small delay so auth state settles before first paint
   useEffect(() => {
@@ -47,38 +46,40 @@ function AppContent() {
 
   // ── Sidebar user object ──────────────────────────────────────────────────
   const sidebarUser = {
-    name:   player?.name  || user?.email?.split("@")[0] || "Player",
-    init:   (player?.name || user?.email || "PL").slice(0, 2).toUpperCase(),
-    rating: player?.elo   || 1500,
+    name:    player?.name  || user?.email?.split("@")[0] || "Player",
+    init:    (player?.name || user?.email || "PL").slice(0, 2).toUpperCase(),
+    rating:  player?.elo   || 1500,
+    isAdmin: isAdmin,
   };
 
   // ── Navigation handler ───────────────────────────────────────────────────
   function handleNav(id) {
-    setActiveMatch(null); // leave scorer if navigating away
     setPage(id);
+    // Don't clear activeMatch when navigating — scorer stays alive
   }
 
   // ── Logout handler ───────────────────────────────────────────────────────
   async function handleLogout() {
-    await signOut?.();
+    await logout();
     // AuthContext will flip isAuthenticated → false, showing Landing automatically
   }
 
   // ── Setup → Scorer flow ──────────────────────────────────────────────────
-  function handleStartMatch(matchData) {
+  function handleStartMatch(matchData, role = "scorer") {
     setActiveMatch(matchData);
+    setActiveRole(role);
     setPage("scorer");
   }
 
   function handleMatchEnd() {
     setActiveMatch(null);
+    setActiveRole(null);
     setPage("dashboard");
   }
 
   // ── Render active page ───────────────────────────────────────────────────
   function renderPage() {
-    // Shared props that every page needs
-    const sharedProps = { onNav: handleNav, onLogout: handleLogout, user: sidebarUser };
+    const sharedProps = { onNav: handleNav, onLogout: handleLogout };
 
     switch (page) {
       case "dashboard":
@@ -114,22 +115,31 @@ function AppContent() {
         return (
           <Profile
             {...sharedProps}
-            // Profile also needs the raw Supabase user for auth_id checks
-            user={{ ...sidebarUser, id: user?.id, email: user?.email }}
+            // Pass both: Supabase user (for magic-link) and player (for access-code)
+            user={{
+              id:    user?.id,
+              email: user?.email,
+              name:  player?.name || user?.email?.split("@")[0],
+            }}
+            player={player}
           />
         );
 
       case "admin":
-        return <Admin {...sharedProps} user={user} />;
+        // Guard: only admins can reach this page
+        if (!isAdmin) {
+          handleNav("dashboard");
+          return null;
+        }
+        return <Admin {...sharedProps} user={user} player={player} />;
 
       default:
         return <Dashboard {...sharedProps} />;
     }
   }
 
-  // ── Full-screen pages (scorer / setup) — no sidebar shell ───────────────
-  const fullScreenPages = ["scorer"];
-  if (fullScreenPages.includes(page)) {
+  // ── Full-screen pages — no sidebar shell ─────────────────────────────────
+  if (page === "scorer") {
     return renderPage();
   }
 
@@ -141,21 +151,16 @@ function AppContent() {
         user={sidebarUser}
         onNav={handleNav}
         onLogout={handleLogout}
+        role={activeRole || (isAdmin ? "admin" : "scorer")}
       />
 
-      {/* Main content — offset by sidebar width on desktop */}
-      <div style={{
-        marginLeft: "220px",
-        flex: 1,
-        minHeight: "100vh",
-        // On mobile the Sidebar renders as a bottom bar, so no left margin needed
-      }}>
+      <div style={{ marginLeft: "220px", flex: 1, minHeight: "100vh" }}>
         <style>{`
           @media (max-width: 768px) {
-            .app-main { margin-left: 0 !important; }
+            .app-main { margin-left: 0 !important; padding-bottom: 72px; }
           }
         `}</style>
-        <div className="app-main" style={{ marginLeft: 0 }}>
+        <div className="app-main">
           {renderPage()}
         </div>
       </div>
