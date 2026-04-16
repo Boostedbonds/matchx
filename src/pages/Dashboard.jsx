@@ -1,7 +1,16 @@
+/**
+ * Dashboard.jsx
+ * Save to: src/pages/Dashboard.jsx
+ * NO TypeScript — works with Vite + plain JSX projects
+ */
+
 import { useEffect, useState } from "react";
-import { supabase } from "../services/supabase";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import {
+  fetchDashboardStats,
+  subscribeToLiveMatches,
+} from "../services/matchService";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
@@ -15,7 +24,6 @@ const styles = `
     overflow-x: hidden;
   }
 
-  /* Ambient background */
   .db-root::before {
     content: '';
     position: fixed;
@@ -37,7 +45,6 @@ const styles = `
     padding: 0 32px 64px;
   }
 
-  /* ── HEADER ── */
   .db-header {
     padding: 48px 0 40px;
     border-bottom: 1px solid rgba(212,175,55,0.15);
@@ -47,8 +54,6 @@ const styles = `
     justify-content: space-between;
     gap: 24px;
   }
-
-  .db-header-left {}
 
   .db-eyebrow {
     font-family: 'JetBrains Mono', monospace;
@@ -90,10 +95,7 @@ const styles = `
     letter-spacing: 0.05em;
   }
 
-  .db-welcome strong {
-    color: #e8e0d0;
-    font-weight: 700;
-  }
+  .db-welcome strong { color: #e8e0d0; font-weight: 700; }
 
   .db-new-match-btn {
     flex-shrink: 0;
@@ -118,7 +120,6 @@ const styles = `
     box-shadow: 0 8px 30px rgba(0,230,160,0.4);
   }
 
-  /* ── STATS ROW ── */
   .db-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -159,10 +160,7 @@ const styles = `
     line-height: 1;
   }
 
-  /* ── SECTION ── */
-  .db-section {
-    margin-bottom: 48px;
-  }
+  .db-section { margin-bottom: 48px; }
 
   .db-section-header {
     display: flex;
@@ -206,14 +204,12 @@ const styles = `
     border: 1px solid rgba(212,175,55,0.15);
   }
 
-  /* ── MATCH GRID ── */
   .db-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 16px;
   }
 
-  /* ── MATCH CARD ── */
   .db-card {
     background: rgba(10,12,18,0.8);
     border: 1px solid rgba(212,175,55,0.12);
@@ -300,9 +296,7 @@ const styles = `
     color: rgba(200,200,220,0.5);
   }
 
-  .db-card-body {
-    padding: 16px 20px;
-  }
+  .db-card-body { padding: 16px 20px; }
 
   .db-match-name {
     font-size: 15px;
@@ -348,7 +342,6 @@ const styles = `
     color: #ffd700;
   }
 
-  /* ── EMPTY STATE ── */
   .db-empty {
     display: flex;
     flex-direction: column;
@@ -360,11 +353,7 @@ const styles = `
     background: rgba(212,175,55,0.02);
   }
 
-  .db-empty-icon {
-    font-size: 56px;
-    margin-bottom: 24px;
-    filter: grayscale(0.3);
-  }
+  .db-empty-icon { font-size: 56px; margin-bottom: 24px; }
 
   .db-empty h2 {
     font-family: 'Bebas Neue', sans-serif;
@@ -402,7 +391,6 @@ const styles = `
     box-shadow: 0 8px 30px rgba(0,230,160,0.35);
   }
 
-  /* ── LOADING ── */
   .db-loading {
     display: flex;
     align-items: center;
@@ -423,87 +411,94 @@ const styles = `
     animation: spin 0.8s linear infinite;
   }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 `;
 
+function getBadge(status) {
+  if (status === "live") return { label: "LIVE", cls: "live" };
+  if (status === "completed") return { label: "COMPLETED", cls: "completed" };
+  return { label: (status || "PENDING").toUpperCase(), cls: "default" };
+}
+
+function MatchCard({ match, onNavigate }) {
+  const badge = getBadge(match.status);
+  return (
+    <div className="db-card" onClick={() => onNavigate(`/match/${match.id}`)}>
+      <div className="db-card-top">
+        <div className="db-card-players">
+          <div className="db-avatar">
+            {(match.player1_name || "P1").slice(0, 2).toUpperCase()}
+          </div>
+          <span className="db-vs">VS</span>
+          <div className="db-avatar">
+            {(match.player2_name || "P2").slice(0, 2).toUpperCase()}
+          </div>
+        </div>
+        <span className={"db-badge " + badge.cls}>{badge.label}</span>
+      </div>
+
+      <div className="db-card-body">
+        <p className="db-match-name">
+          {match.player1_name || "Player 1"} vs {match.player2_name || "Player 2"}
+        </p>
+        <div className="db-match-meta">
+          <span>{match.court_name || "Court"}</span>
+          {match.started_at && (
+            <span>{new Date(match.started_at).toLocaleDateString()}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="db-card-foot">
+        <button className="db-view-btn">VIEW MATCH →</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
-  const [liveMatches, setLiveMatches] = useState([]);
-  const [recentMatches, setRecentMatches] = useState([]);
+  const [stats, setStats] = useState({
+    liveNow: 0,
+    totalMatches: 0,
+    completedMatches: 0,
+    season: new Date().getFullYear().toString(),
+    liveMatches: [],
+    recentMatches: [],
+  });
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { user, player } = useAuth();
 
-  // Resolve display name: access code player → Supabase user email → fallback
   const displayName =
-    player?.name ||
-    user?.email?.split("@")[0] ||
-    "Player";
+    player?.name || user?.email?.split("@")[0] || "Player";
 
-  useEffect(() => { loadMatches(); }, []);
+  useEffect(() => {
+    loadDashboardData();
 
-  async function loadMatches() {
+    const subscription = subscribeToLiveMatches((matches) => {
+      setStats((prev) => ({
+        ...prev,
+        liveMatches: matches,
+        liveNow: matches.length,
+      }));
+    });
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
+  }, []);
+
+  async function loadDashboardData() {
     setLoading(true);
     try {
-      const { data: live } = await supabase
-        .from("matches").select("*").eq("status", "live");
-      const { data: recent } = await supabase
-        .from("matches").select("*")
-        .order("created_at", { ascending: false }).limit(10);
-      setLiveMatches(live || []);
-      setRecentMatches(recent || []);
+      const dashboardStats = await fetchDashboardStats();
+      setStats(dashboardStats);
     } catch (err) {
-      console.error("Dashboard error:", err);
+      console.error("Dashboard load error:", err);
     } finally {
       setLoading(false);
     }
   }
-
-  function getBadge(status) {
-    if (status === "live") return { label: "LIVE", cls: "live" };
-    if (status === "completed") return { label: "COMPLETED", cls: "completed" };
-    return { label: (status || "PENDING").toUpperCase(), cls: "default" };
-  }
-
-  function MatchCard({ match }) {
-    const badge = getBadge(match.status);
-    return (
-      <div className="db-card" onClick={() => navigate(`/match/${match.id}`)}>
-        <div className="db-card-top">
-          <div className="db-card-players">
-            <div className="db-avatar">
-              {(match.player1_name || "P1").slice(0, 2).toUpperCase()}
-            </div>
-            <span className="db-vs">VS</span>
-            <div className="db-avatar">
-              {(match.player2_name || "P2").slice(0, 2).toUpperCase()}
-            </div>
-          </div>
-          <span className={`db-badge ${badge.cls}`}>{badge.label}</span>
-        </div>
-
-        <div className="db-card-body">
-          <p className="db-match-name">
-            {match.player1_name || "Player 1"} vs {match.player2_name || "Player 2"}
-          </p>
-          <div className="db-match-meta">
-            <span>{match.court_name || "Court"}</span>
-            {match.created_at && (
-              <span>{new Date(match.created_at).toLocaleDateString()}</span>
-            )}
-          </div>
-        </div>
-
-        <div className="db-card-foot">
-          <button className="db-view-btn">VIEW MATCH →</button>
-        </div>
-      </div>
-    );
-  }
-
-  const totalMatches = recentMatches.length;
-  const completedMatches = recentMatches.filter(m => m.status === "completed").length;
 
   return (
     <>
@@ -513,14 +508,17 @@ export default function Dashboard() {
 
           {/* HEADER */}
           <header className="db-header">
-            <div className="db-header-left">
+            <div>
               <div className="db-eyebrow">Badminton Live Scoring Platform</div>
               <h1 className="db-title">Dashboard</h1>
               <p className="db-welcome">
                 Welcome back, <strong>{displayName}</strong>
               </p>
             </div>
-            <button className="db-new-match-btn" onClick={() => navigate("/match/new")}>
+            <button
+              className="db-new-match-btn"
+              onClick={() => navigate("/match/new")}
+            >
               ⚡ NEW MATCH
             </button>
           </header>
@@ -529,22 +527,23 @@ export default function Dashboard() {
           <div className="db-stats">
             <div className="db-stat">
               <div className="db-stat-label">Live Now</div>
-              <div className="db-stat-value">{liveMatches.length}</div>
+              <div className="db-stat-value">{stats.liveNow}</div>
             </div>
             <div className="db-stat">
               <div className="db-stat-label">Total Matches</div>
-              <div className="db-stat-value">{totalMatches}</div>
+              <div className="db-stat-value">{stats.totalMatches}</div>
             </div>
             <div className="db-stat">
               <div className="db-stat-label">Completed</div>
-              <div className="db-stat-value">{completedMatches}</div>
+              <div className="db-stat-value">{stats.completedMatches}</div>
             </div>
             <div className="db-stat">
               <div className="db-stat-label">Season</div>
-              <div className="db-stat-value">2026</div>
+              <div className="db-stat-value">{stats.season}</div>
             </div>
           </div>
 
+          {/* LOADING */}
           {loading && (
             <div className="db-loading">
               <div className="db-spinner" />
@@ -553,45 +552,53 @@ export default function Dashboard() {
           )}
 
           {/* LIVE MATCHES */}
-          {!loading && liveMatches.length > 0 && (
+          {!loading && stats.liveMatches.length > 0 && (
             <section className="db-section">
               <div className="db-section-header">
                 <h2 className="db-section-title">
                   <span className="live-dot" /> Live Matches
                 </h2>
-                <span className="db-count-badge">{liveMatches.length} LIVE</span>
+                <span className="db-count-badge">{stats.liveNow} LIVE</span>
               </div>
               <div className="db-grid">
-                {liveMatches.map((m, i) => <MatchCard key={m.id || i} match={m} />)}
+                {stats.liveMatches.map((m, i) => (
+                  <MatchCard key={m.id || i} match={m} onNavigate={navigate} />
+                ))}
               </div>
             </section>
           )}
 
           {/* RECENT MATCHES */}
-          {!loading && recentMatches.length > 0 && (
+          {!loading && stats.recentMatches.length > 0 && (
             <section className="db-section">
               <div className="db-section-header">
                 <h2 className="db-section-title">📋 Recent Matches</h2>
-                <span className="db-count-badge">{recentMatches.length} TOTAL</span>
+                <span className="db-count-badge">{stats.totalMatches} TOTAL</span>
               </div>
               <div className="db-grid">
-                {recentMatches.map((m, i) => <MatchCard key={m.id || i} match={m} />)}
+                {stats.recentMatches.map((m, i) => (
+                  <MatchCard key={m.id || i} match={m} onNavigate={navigate} />
+                ))}
               </div>
             </section>
           )}
 
           {/* EMPTY STATE */}
-          {!loading && liveMatches.length === 0 && recentMatches.length === 0 && (
-            <div className="db-empty">
-              <div className="db-empty-icon">🏸</div>
-              <h2>No Matches Yet</h2>
-              <p>Start your first match to see it here.</p>
-              <button className="db-create-btn" onClick={() => navigate("/match/new")}>
-                ⚡ CREATE NEW MATCH
-              </button>
-            </div>
-          )}
-
+          {!loading &&
+            stats.liveMatches.length === 0 &&
+            stats.recentMatches.length === 0 && (
+              <div className="db-empty">
+                <div className="db-empty-icon">🏸</div>
+                <h2>No Matches Yet</h2>
+                <p>Start your first match to see it here.</p>
+                <button
+                  className="db-create-btn"
+                  onClick={() => navigate("/match/new")}
+                >
+                  ⚡ CREATE NEW MATCH
+                </button>
+              </div>
+            )}
         </div>
       </div>
     </>
