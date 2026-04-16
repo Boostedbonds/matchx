@@ -6,7 +6,6 @@
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
-// ── Pages ─────────────────────────────────────────────────────────────────────
 import Landing     from "./pages/Landing";
 import Dashboard   from "./pages/Dashboard";
 import Tournament  from "./pages/Tournament";
@@ -16,20 +15,14 @@ import Profile     from "./pages/Profile";
 import Admin       from "./pages/Admin";
 import Setup       from "./pages/Setup";
 import MatchScorer from "./pages/MatchScorer";
-import SpectatorView from "./pages/SpectatorView"; // live watch view
-
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-import Sidebar from "./components/Sidebar";
-
-// ─────────────────────────────────────────────────────────────────────────────
+import Sidebar     from "./components/Sidebar";
 
 function AppContent() {
-  const { isAuthenticated, loading, user, player, logout, isAdmin } = useAuth();
+  const { isAuthenticated, loading, user, player, logout, isAdmin, role, updateRole } = useAuth();
 
-  const [ready,        setReady]        = useState(false);
-  const [page,         setPage]         = useState("dashboard");
-  const [activeMatch,  setActiveMatch]  = useState(null);  // match row from DB
-  const [activeRole,   setActiveRole]   = useState(null);  // "scorer" | "spectator"
+  const [ready,       setReady]       = useState(false);
+  const [page,        setPage]        = useState("dashboard");
+  const [activeMatch, setActiveMatch] = useState(null);
 
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 300);
@@ -40,54 +33,51 @@ function AppContent() {
     return <div style={{ background: "#000", height: "100vh" }} />;
   }
 
-  if (!isAuthenticated) return <Landing />;
+  if (!isAuthenticated) {
+    return <Landing />;
+  }
 
-  // ── Sidebar user object ───────────────────────────────────────────────────
   const sidebarUser = {
-    name:    player?.name  || user?.email?.split("@")[0] || "Player",
-    init:    (player?.name || user?.email || "PL").slice(0, 2).toUpperCase(),
-    rating:  player?.elo   || 1500,
+    name:       player?.name       || user?.email?.split("@")[0] || "Player",
+    init:       (player?.name      || user?.email || "PL").slice(0, 2).toUpperCase(),
+    rating:     player?.elo        || 1500,
+    avatar_url: player?.avatar_url || null,
     isAdmin,
   };
 
-  // ── Navigation ────────────────────────────────────────────────────────────
-  function handleNav(id) { setPage(id); }
+  function handleNav(id) {
+    setPage(id);
+  }
 
-  async function handleLogout() { await logout(); }
+  async function handleLogout() {
+    await logout();
+  }
 
-  // ── Setup → Scorer: called by Setup after DB match is created ─────────────
-  // matchData = the DB row returned from Supabase after insert
   function handleStartMatch(matchData) {
     setActiveMatch(matchData);
-    setActiveRole("scorer");
+    // When starting a match, user becomes scorer
+    updateRole("scorer");
     setPage("scorer");
   }
 
-  // ── Dashboard card click → spectator view ─────────────────────────────────
   function handleWatchMatch(matchData) {
     setActiveMatch(matchData);
-    setActiveRole("spectator");
-    setPage("spectator");
+    // Watching live = spectator
+    updateRole("spectator");
+    setPage("scorer");
   }
 
   function handleMatchEnd() {
     setActiveMatch(null);
-    setActiveRole(null);
     setPage("dashboard");
   }
 
-  // ── Page renderer ─────────────────────────────────────────────────────────
   function renderPage() {
     const sharedProps = { onNav: handleNav, onLogout: handleLogout };
 
     switch (page) {
       case "dashboard":
-        return (
-          <Dashboard
-            {...sharedProps}
-            onWatchMatch={handleWatchMatch}
-          />
-        );
+        return <Dashboard {...sharedProps} onWatchMatch={handleWatchMatch} />;
 
       case "setup":
         return (
@@ -98,22 +88,12 @@ function AppContent() {
         );
 
       case "scorer":
-        // Full-screen — rendered outside sidebar shell below
         return (
           <MatchScorer
             {...sharedProps}
-            matchData={activeMatch}       // ← pass the DB row; no second insert
-            role="scorer"
-            onMatchEnd={handleMatchEnd}
-          />
-        );
-
-      case "spectator":
-        return (
-          <SpectatorView
-            {...sharedProps}
             matchData={activeMatch}
-            onBack={() => setPage("dashboard")}
+            role={role}
+            onMatchEnd={handleMatchEnd}
           />
         );
 
@@ -130,17 +110,16 @@ function AppContent() {
         return (
           <Profile
             {...sharedProps}
-            user={{
-              id:    user?.id,
-              email: user?.email,
-              name:  player?.name || user?.email?.split("@")[0],
-            }}
+            user={{ id: user?.id, email: user?.email }}
             player={player}
           />
         );
 
       case "admin":
-        if (!isAdmin) { handleNav("dashboard"); return null; }
+        if (!isAdmin) {
+          handleNav("dashboard");
+          return null;
+        }
         return <Admin {...sharedProps} user={user} player={player} />;
 
       default:
@@ -148,34 +127,30 @@ function AppContent() {
     }
   }
 
-  // ── Full-screen pages — no sidebar ────────────────────────────────────────
-  if (page === "scorer") return renderPage();
+  // Scorer is full-screen, no sidebar
+  if (page === "scorer") {
+    return renderPage();
+  }
 
-  // ── Standard layout ───────────────────────────────────────────────────────
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#080a0f" }}>
-      <style>{`
-        .sidebar-shell { width: 220px; flex-shrink: 0; }
-        .main-shell    { flex: 1; min-height: 100vh; min-width: 0; overflow-x: auto; }
+      <Sidebar
+        active={page}
+        user={sidebarUser}
+        onNav={handleNav}
+        onLogout={handleLogout}
+        role={isAdmin ? "admin" : role}
+      />
 
-        @media (max-width: 768px) {
-          .sidebar-shell { display: none; }
-          .main-shell    { padding-bottom: 72px; }
-        }
-      `}</style>
-
-      <div className="sidebar-shell">
-        <Sidebar
-          active={page}
-          user={sidebarUser}
-          onNav={handleNav}
-          onLogout={handleLogout}
-          role={activeRole || (isAdmin ? "admin" : "spectator")}
-        />
-      </div>
-
-      <div className="main-shell">
-        {renderPage()}
+      <div style={{ marginLeft: "220px", flex: 1, minHeight: "100vh" }}>
+        <style>{`
+          @media (max-width: 768px) {
+            .app-main { margin-left: 0 !important; padding-bottom: 72px; }
+          }
+        `}</style>
+        <div className="app-main" style={{ marginLeft: 0 }}>
+          {renderPage()}
+        </div>
       </div>
     </div>
   );
