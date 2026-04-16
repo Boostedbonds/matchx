@@ -1,5 +1,12 @@
+/**
+ * MatchScorer.jsx
+ * src/pages/MatchScorer.jsx
+ *
+ * Receives `matchData` (DB row from Setup) — does NOT create a second match.
+ * Role: "scorer" gets scoring controls; "spectator" gets read-only view.
+ */
+
 import { useState, useEffect, useRef } from "react";
-import Sidebar from "../components/Sidebar";
 import {
   createMatchState,
   addPoint,
@@ -8,169 +15,515 @@ import {
   SHOT_TYPES,
 } from "../services/matchEngine";
 import {
-  createMatch,
   updateMatch,
   finishMatch,
   saveEvent,
   updatePlayerStats,
 } from "../services/matchService";
+import { supabase } from "../services/supabase";
 
-// ─── Demo players ───────────────────────────────────────────────
-const DEMO_P1 = { name: "Rahul Sharma", init: "RS", club: "Eagles FC", rating: 2104 };
-const DEMO_P2 = { name: "Arjun Mehta",  init: "AM", club: "Smash FC",  rating: 1980 };
+const STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
 
-export default function MatchScorer({
-  onNav,
-  onLogout,
-  user,
-  onMatchUpdate,
-  onMatchEnd,
-  player1 = DEMO_P1,
-  player2 = DEMO_P2,
-}) {
-  const [match, setMatch] = useState(null);
-  const [matchId, setMatchId] = useState(null);
-  const [shareCode, setShareCode] = useState(null);
-  const [shotPicker, setShotPicker] = useState(null);
-  const [tab, setTab] = useState("score");
-  const [flash, setFlash] = useState(null);
-  const [dbError, setDbError] = useState(null);
-  const [initialising, setInitialising] = useState(true);
+  .scorer-root {
+    min-height: 100vh;
+    background: #030508;
+    color: #e8e0d0;
+    font-family: 'Rajdhani', sans-serif;
+    display: flex; flex-direction: column;
+  }
+
+  /* ── Top bar ── */
+  .scorer-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(212,175,55,0.12);
+    background: rgba(0,0,0,0.4);
+    gap: 12px; flex-wrap: wrap;
+  }
+
+  .scorer-logo {
+    font-family: 'Bebas Neue', sans-serif; font-size: 22px;
+    letter-spacing: 0.1em; color: #ffd700;
+  }
+
+  .scorer-share {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.15em; color: rgba(212,175,55,0.5);
+    padding: 6px 12px; border: 1px solid rgba(212,175,55,0.15);
+  }
+
+  .scorer-exit-btn {
+    background: transparent; border: 1px solid rgba(255,100,100,0.3);
+    color: rgba(255,100,100,0.6); padding: 6px 16px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; cursor: pointer; transition: all 0.2s;
+  }
+  .scorer-exit-btn:hover { border-color: #ff6464; color: #ff6464; }
+
+  /* ── Main area ── */
+  .scorer-body {
+    flex: 1; display: flex; flex-direction: column;
+    max-width: 900px; margin: 0 auto; width: 100%;
+    padding: 24px 20px 40px;
+  }
+
+  /* ── Scoreboard ── */
+  .scorer-board {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 0; align-items: stretch;
+    border: 1px solid rgba(212,175,55,0.15);
+    margin-bottom: 24px; overflow: hidden;
+  }
+
+  .scorer-player {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 28px 16px; gap: 8px;
+    cursor: pointer; transition: background 0.15s; position: relative;
+    user-select: none;
+  }
+  .scorer-player.scorer-only:active { background: rgba(0,230,160,0.08); }
+  .scorer-player.left { border-right: 1px solid rgba(212,175,55,0.1); }
+  .scorer-player.right { border-left: 1px solid rgba(212,175,55,0.1); }
+
+  .scorer-serve-dot {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #00e6a0; box-shadow: 0 0 8px #00e6a0;
+  }
+
+  .scorer-init {
+    width: 48px; height: 48px;
+    border: 1px solid rgba(212,175,55,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: #ffd700;
+    background: rgba(212,175,55,0.05);
+  }
+
+  .scorer-name {
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+    letter-spacing: 0.06em; color: #e8e0d0; text-align: center;
+    max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .scorer-score {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(60px, 10vw, 100px);
+    letter-spacing: -0.02em; line-height: 1;
+    color: #ffd700;
+  }
+
+  .scorer-hint {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.15em; color: rgba(0,230,160,0.4);
+    text-transform: uppercase;
+  }
+
+  /* middle column */
+  .scorer-mid {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 16px 12px; gap: 8px;
+    background: rgba(212,175,55,0.02); min-width: 60px;
+  }
+
+  .scorer-game-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.15em; color: rgba(212,175,55,0.4);
+    text-transform: uppercase;
+  }
+
+  .scorer-game-no {
+    font-family: 'Bebas Neue', sans-serif; font-size: 28px;
+    color: rgba(212,175,55,0.6); letter-spacing: 0.05em;
+  }
+
+  .scorer-games-won {
+    display: flex; gap: 4px;
+  }
+
+  .gw-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: rgba(212,175,55,0.15); border: 1px solid rgba(212,175,55,0.2);
+  }
+  .gw-dot.won { background: #ffd700; box-shadow: 0 0 6px rgba(255,215,0,0.5); }
+
+  /* ── Shot picker ── */
+  .shot-picker {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 480px) {
+    .shot-picker { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .shot-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 12px 8px;
+    background: rgba(212,175,55,0.04); border: 1px solid rgba(212,175,55,0.12);
+    cursor: pointer; transition: all 0.15s; color: #e8e0d0;
+  }
+  .shot-btn:hover {
+    background: rgba(0,230,160,0.08); border-color: rgba(0,230,160,0.3);
+  }
+  .shot-icon { font-size: 20px; }
+  .shot-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: rgba(232,224,208,0.5);
+  }
+
+  .shot-picker-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.18em; color: #00e6a0; text-transform: uppercase;
+    margin-bottom: 10px; text-align: center;
+  }
+
+  /* ── Controls ── */
+  .scorer-controls {
+    display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+
+  .ctrl-btn {
+    flex: 1; min-width: 100px; padding: 12px 16px;
+    background: rgba(212,175,55,0.04); border: 1px solid rgba(212,175,55,0.15);
+    color: rgba(212,175,55,0.7);
+    font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.1em;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .ctrl-btn:hover { background: rgba(212,175,55,0.1); color: #ffd700; }
+  .ctrl-btn.danger { border-color: rgba(255,80,80,0.2); color: rgba(255,100,100,0.6); }
+  .ctrl-btn.danger:hover { background: rgba(255,80,80,0.08); color: #ff6464; }
+
+  /* ── Commentary ── */
+  .commentary-box {
+    border: 1px solid rgba(212,175,55,0.1);
+    background: rgba(0,0,0,0.3);
+    max-height: 200px; overflow-y: auto; padding: 12px 16px;
+  }
+
+  .commentary-line {
+    font-size: 14px; font-weight: 500; letter-spacing: 0.02em;
+    color: rgba(232,224,208,0.7); padding: 5px 0;
+    border-bottom: 1px solid rgba(212,175,55,0.05);
+    line-height: 1.4;
+  }
+  .commentary-line:first-child { color: #e8e0d0; }
+  .commentary-line:last-child { border-bottom: none; }
+
+  /* ── Finished banner ── */
+  .winner-banner {
+    text-align: center; padding: 40px 24px;
+    border: 1px solid rgba(212,175,55,0.25);
+    background: rgba(212,175,55,0.04);
+    margin-bottom: 24px;
+  }
+  .winner-trophy { font-size: 56px; margin-bottom: 12px; }
+  .winner-title {
+    font-family: 'Bebas Neue', sans-serif; font-size: 48px;
+    letter-spacing: 0.08em;
+    background: linear-gradient(135deg, #ffd700, #fff8dc, #d4af37);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .winner-sub { font-size: 16px; color: rgba(232,224,208,0.5); letter-spacing: 0.06em; margin-top: 8px; }
+
+  /* ── Loading ── */
+  .scorer-loading {
+    display: flex; align-items: center; justify-content: center;
+    height: 60vh; flex-direction: column; gap: 16px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    letter-spacing: 0.15em; color: rgba(212,175,55,0.5);
+  }
+  .scorer-spinner {
+    width: 28px; height: 28px;
+    border: 2px solid rgba(212,175,55,0.15); border-top-color: #d4af37;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+`;
+
+export default function MatchScorer({ onNav, onLogout, matchData, role = "spectator", onMatchEnd }) {
+  const [match,       setMatch]       = useState(null);
+  const [shotPicker,  setShotPicker]  = useState(null); // "p1" | "p2" | null
   const commentaryRef = useRef(null);
 
+  const isScorer = role === "scorer";
+
+  // ── Build engine state from matchData ──────────────────────────────────────
   useEffect(() => {
-    async function init() {
-      try {
-        const dbMatch = await createMatch({ player1, player2 });
-        setMatchId(dbMatch.id);
-        setShareCode(dbMatch.share_code);
+    if (!matchData) return;
 
-        const engineState = createMatchState(player1, player2);
-        setMatch(engineState);
-        onMatchUpdate?.(engineState);
-      } catch (err) {
-        setDbError("Could not connect to Supabase.");
-        const engineState = createMatchState(player1, player2);
-        setMatch(engineState);
-        onMatchUpdate?.(engineState);
-      } finally {
-        setInitialising(false);
-      }
+    const p1 = {
+      id:     matchData.player1_id,
+      name:   matchData.player1_name || "Player 1",
+      init:   (matchData.player1_name || "P1").slice(0, 2).toUpperCase(),
+      club:   matchData.player1_club || "",
+      rating: matchData.player1_rating || 1500,
+    };
+    const p2 = {
+      id:     matchData.player2_id,
+      name:   matchData.player2_name || "Player 2",
+      init:   (matchData.player2_name || "P2").slice(0, 2).toUpperCase(),
+      club:   matchData.player2_club || "",
+      rating: matchData.player2_rating || 1500,
+    };
+
+    const engineState = createMatchState(p1, p2);
+    setMatch(engineState);
+  }, [matchData]);
+
+  // ── Realtime: spectator receives DB updates ────────────────────────────────
+  useEffect(() => {
+    if (!matchData?.id || isScorer) return;
+
+    const channel = supabase
+      .channel("scorer-watch-" + matchData.id)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchData.id}` },
+        (payload) => {
+          // For spectator: reflect score from DB
+          setMatch(prev => {
+            if (!prev) return prev;
+            const row = payload.new;
+            const updated = { ...prev };
+            if (row.score_a !== undefined) updated.scores[0].p1 = row.score_a;
+            if (row.score_b !== undefined) updated.scores[0].p2 = row.score_b;
+            if (row.status === "completed") {
+              updated.status = "finished";
+              updated.winner = row.winner;
+            }
+            return { ...updated };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [matchData?.id, isScorer]);
+
+  // Auto-scroll commentary
+  useEffect(() => {
+    if (commentaryRef.current) {
+      commentaryRef.current.scrollTop = 0;
     }
-    init();
-  }, []);
+  }, [match?.commentary]);
 
-  if (!match) return <div>Loading...</div>;
+  if (!match) {
+    return (
+      <>
+        <style>{STYLES}</style>
+        <div className="scorer-root">
+          <div className="scorer-loading">
+            <div className="scorer-spinner" />
+            LOADING MATCH...
+          </div>
+        </div>
+      </>
+    );
+  }
 
-  const gIdx = match.currentGame - 1;
+  const gIdx  = match.currentGame - 1;
   const score = match.scores[gIdx];
   const isLive = match.status === "live";
 
-  async function commitState(next, newEvent) {
+  // ── Commit point ──────────────────────────────────────────────────────────
+  async function commitPoint(scorer, shotType) {
+    const next     = addPoint(match, { scorer, shotType });
+    const newEvent = next.events[next.events.length - 1];
     setMatch(next);
-    onMatchUpdate?.(next);
 
-    if (!matchId) return;
+    if (!matchData?.id) return;
 
     try {
-      const updates = {
-        scores: next.scores,
-        games_won: next.gamesWon,
-        current_game: next.currentGame,
-        server: next.server,
-        status: next.status,
-      };
-
-      if (newEvent) {
-        await saveEvent(matchId, newEvent);
-      }
-
       if (next.status === "finished") {
-        await finishMatch(matchId, next.winner);
-
-        if (player1.id) {
-          await updatePlayerStats(player1.id, {
-            won: next.winner === "p1",
-            shotType: newEvent?.shotType || "smash",
-          });
-        }
-
-        if (player2.id) {
-          await updatePlayerStats(player2.id, {
-            won: next.winner === "p2",
-            shotType: newEvent?.shotType || "smash",
-          });
-        }
-
+        await finishMatch(matchData.id, next.winner);
+        if (matchData.player1_id) await updatePlayerStats(matchData.player1_id, { won: next.winner === "p1", shotType });
+        if (matchData.player2_id) await updatePlayerStats(matchData.player2_id, { won: next.winner === "p2", shotType });
         setTimeout(() => onMatchEnd?.(), 3000);
       } else {
-        await updateMatch(matchId, updates);
+        await updateMatch(matchData.id, {
+          score_a:      next.scores[0].p1,
+          score_b:      next.scores[0].p2,
+          scores:       next.scores,
+          games_won:    next.gamesWon,
+          current_game: next.currentGame,
+          server:       next.server,
+          status:       next.status,
+        });
+        await saveEvent(matchData.id, newEvent);
       }
     } catch (err) {
-      console.error(err);
+      console.error("commitPoint error:", err);
     }
   }
 
-  function handlePointTap(scorer) {
-    if (!isLive) return;
-    setShotPicker(scorer);
+  function handlePlayerTap(player) {
+    if (!isScorer || !isLive) return;
+    setShotPicker(player);
   }
 
   async function handleShotPick(shotType) {
     const scorer = shotPicker;
     setShotPicker(null);
-    const next = addPoint(match, { scorer, shotType });
-    const newEvent = next.events[next.events.length - 1];
-    await commitState(next, newEvent);
+    await commitPoint(scorer, shotType);
   }
 
   async function handleUndo() {
     const prev = undoPoint(match);
     setMatch(prev);
-    onMatchUpdate?.(prev);
-
-    if (matchId) {
-      try {
-        await updateMatch(matchId, {
-          scores: prev.scores,
-          games_won: prev.gamesWon,
-          current_game: prev.currentGame,
-          server: prev.server,
-        });
-      } catch (err) {
-        console.error(err);
-      }
+    if (matchData?.id) {
+      await updateMatch(matchData.id, {
+        score_a:      prev.scores[0].p1,
+        score_b:      prev.scores[0].p2,
+        scores:       prev.scores,
+        games_won:    prev.gamesWon,
+        current_game: prev.currentGame,
+        server:       prev.server,
+      });
     }
   }
 
-  const p1Stats = getPlayerStats(match.events, "p1");
-  const p2Stats = getPlayerStats(match.events, "p2");
+  async function handleEndMatch() {
+    if (!window.confirm("End this match now?")) return;
+    if (matchData?.id) await finishMatch(matchData.id, null);
+    onMatchEnd?.();
+  }
+
+  const shareUrl = matchData?.id
+    ? `${window.location.origin}/watch/${matchData.id}`
+    : null;
 
   return (
-    <div style={{ display: "flex" }}>
-      <Sidebar active="setup" user={user} onNav={onNav} onLogout={onLogout} />
+    <>
+      <style>{STYLES}</style>
+      <div className="scorer-root">
 
-      <div style={{ padding: 20, flex: 1 }}>
-        <h2>🏸 Live Scorer</h2>
-
-        <h3>{player1.name} vs {player2.name}</h3>
-        <h1>{score.p1} - {score.p2}</h1>
-
-        <button onClick={() => handlePointTap("p1")}>Point {player1.name}</button>
-        <button onClick={() => handlePointTap("p2")}>Point {player2.name}</button>
-
-        <button onClick={handleUndo}>Undo</button>
-
-        {shotPicker && (
-          <div>
-            {SHOT_TYPES.map(s => (
-              <button key={s.id} onClick={() => handleShotPick(s.id)}>
-                {s.label}
+        {/* TOP BAR */}
+        <div className="scorer-topbar">
+          <div className="scorer-logo">MATCH<span style={{ color: "#00e6a0" }}>X</span></div>
+          {shareUrl && (
+            <div className="scorer-share">
+              👁 {shareUrl}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            {isScorer && (
+              <button className="ctrl-btn danger" style={{ flex: "none", padding: "6px 14px", fontSize: 12 }} onClick={handleEndMatch}>
+                END MATCH
               </button>
-            ))}
+            )}
+            <button className="scorer-exit-btn" onClick={() => onNav?.("dashboard")}>
+              ← DASHBOARD
+            </button>
           </div>
-        )}
+        </div>
+
+        <div className="scorer-body">
+
+          {/* WINNER BANNER */}
+          {match.status === "finished" && (
+            <div className="winner-banner">
+              <div className="winner-trophy">🏆</div>
+              <div className="winner-title">
+                {match.winner === "p1" ? match.player1.name : match.player2.name} WINS!
+              </div>
+              <div className="winner-sub">Match Complete · Returning to dashboard…</div>
+            </div>
+          )}
+
+          {/* SCOREBOARD */}
+          <div className="scorer-board">
+            {/* PLAYER 1 */}
+            <div
+              className={`scorer-player left ${isScorer ? "scorer-only" : ""}`}
+              onClick={() => handlePlayerTap("p1")}
+            >
+              {match.server === "p1" && <div className="scorer-serve-dot" />}
+              <div className="scorer-init">{match.player1.init}</div>
+              <div className="scorer-name">{match.player1.name}</div>
+              <div className="scorer-score">{score.p1}</div>
+              {isScorer && isLive && <div className="scorer-hint">TAP TO SCORE</div>}
+            </div>
+
+            {/* MIDDLE */}
+            <div className="scorer-mid">
+              <div className="scorer-game-label">Game</div>
+              <div className="scorer-game-no">{match.currentGame}</div>
+              <div className="scorer-game-label" style={{ marginTop: 8 }}>Games</div>
+              <div className="scorer-games-won">
+                {[0, 1].map(i => (
+                  <div key={`p1g${i}`} className={`gw-dot ${match.gamesWon.p1 > i ? "won" : ""}`} />
+                ))}
+              </div>
+              <div style={{ color: "rgba(212,175,55,0.3)", fontSize: 12, margin: "2px 0" }}>–</div>
+              <div className="scorer-games-won">
+                {[0, 1].map(i => (
+                  <div key={`p2g${i}`} className={`gw-dot ${match.gamesWon.p2 > i ? "won" : ""}`} />
+                ))}
+              </div>
+            </div>
+
+            {/* PLAYER 2 */}
+            <div
+              className={`scorer-player right ${isScorer ? "scorer-only" : ""}`}
+              onClick={() => handlePlayerTap("p2")}
+            >
+              {match.server === "p2" && <div className="scorer-serve-dot" />}
+              <div className="scorer-init">{match.player2.init}</div>
+              <div className="scorer-name">{match.player2.name}</div>
+              <div className="scorer-score">{score.p2}</div>
+              {isScorer && isLive && <div className="scorer-hint">TAP TO SCORE</div>}
+            </div>
+          </div>
+
+          {/* SHOT PICKER */}
+          {isScorer && shotPicker && (
+            <div style={{ marginBottom: 20 }}>
+              <div className="shot-picker-label">
+                {shotPicker === "p1" ? match.player1.name : match.player2.name} — select shot type
+              </div>
+              <div className="shot-picker">
+                {SHOT_TYPES.map(s => (
+                  <button key={s.id} className="shot-btn" onClick={() => handleShotPick(s.id)}>
+                    <span className="shot-icon">{s.icon}</span>
+                    <span className="shot-label">{s.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SCORER CONTROLS */}
+          {isScorer && isLive && !shotPicker && (
+            <div className="scorer-controls">
+              <button className="ctrl-btn" onClick={handleUndo}>↩ UNDO</button>
+            </div>
+          )}
+
+          {/* COMMENTARY */}
+          {match.commentary.length > 0 && (
+            <div className="commentary-box" ref={commentaryRef}>
+              {match.commentary.map((line, i) => (
+                <div key={i} className="commentary-line">{line}</div>
+              ))}
+            </div>
+          )}
+
+          {/* SPECTATOR LABEL */}
+          {!isScorer && (
+            <div style={{
+              textAlign: "center", marginTop: 16,
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+              letterSpacing: "0.18em", color: "rgba(0,230,160,0.4)",
+              textTransform: "uppercase"
+            }}>
+              👁 Spectator View · Live Updates
+            </div>
+          )}
+
+        </div>
       </div>
-    </div>
+    </>
   );
 }

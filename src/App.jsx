@@ -6,7 +6,7 @@
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
-// ── Pages ────────────────────────────────────────────────────────────────────
+// ── Pages ─────────────────────────────────────────────────────────────────────
 import Landing     from "./pages/Landing";
 import Dashboard   from "./pages/Dashboard";
 import Tournament  from "./pages/Tournament";
@@ -16,8 +16,9 @@ import Profile     from "./pages/Profile";
 import Admin       from "./pages/Admin";
 import Setup       from "./pages/Setup";
 import MatchScorer from "./pages/MatchScorer";
+import SpectatorView from "./pages/SpectatorView"; // live watch view
 
-// ── Sidebar ──────────────────────────────────────────────────────────────────
+// ── Sidebar ───────────────────────────────────────────────────────────────────
 import Sidebar from "./components/Sidebar";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,12 +26,11 @@ import Sidebar from "./components/Sidebar";
 function AppContent() {
   const { isAuthenticated, loading, user, player, logout, isAdmin } = useAuth();
 
-  const [ready,       setReady]       = useState(false);
-  const [page,        setPage]        = useState("dashboard");
-  const [activeMatch, setActiveMatch] = useState(null);
-  const [activeRole,  setActiveRole]  = useState(null); // "scorer" | "spectator" | null
+  const [ready,        setReady]        = useState(false);
+  const [page,         setPage]         = useState("dashboard");
+  const [activeMatch,  setActiveMatch]  = useState(null);  // match row from DB
+  const [activeRole,   setActiveRole]   = useState(null);  // "scorer" | "spectator"
 
-  // Small delay so auth state settles before first paint
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(t);
@@ -40,35 +40,34 @@ function AppContent() {
     return <div style={{ background: "#000", height: "100vh" }} />;
   }
 
-  if (!isAuthenticated) {
-    return <Landing />;
-  }
+  if (!isAuthenticated) return <Landing />;
 
-  // ── Sidebar user object ──────────────────────────────────────────────────
+  // ── Sidebar user object ───────────────────────────────────────────────────
   const sidebarUser = {
     name:    player?.name  || user?.email?.split("@")[0] || "Player",
     init:    (player?.name || user?.email || "PL").slice(0, 2).toUpperCase(),
     rating:  player?.elo   || 1500,
-    isAdmin: isAdmin,
+    isAdmin,
   };
 
-  // ── Navigation handler ───────────────────────────────────────────────────
-  function handleNav(id) {
-    setPage(id);
-    // Don't clear activeMatch when navigating — scorer stays alive
-  }
+  // ── Navigation ────────────────────────────────────────────────────────────
+  function handleNav(id) { setPage(id); }
 
-  // ── Logout handler ───────────────────────────────────────────────────────
-  async function handleLogout() {
-    await logout();
-    // AuthContext will flip isAuthenticated → false, showing Landing automatically
-  }
+  async function handleLogout() { await logout(); }
 
-  // ── Setup → Scorer flow ──────────────────────────────────────────────────
-  function handleStartMatch(matchData, role = "scorer") {
+  // ── Setup → Scorer: called by Setup after DB match is created ─────────────
+  // matchData = the DB row returned from Supabase after insert
+  function handleStartMatch(matchData) {
     setActiveMatch(matchData);
-    setActiveRole(role);
+    setActiveRole("scorer");
     setPage("scorer");
+  }
+
+  // ── Dashboard card click → spectator view ─────────────────────────────────
+  function handleWatchMatch(matchData) {
+    setActiveMatch(matchData);
+    setActiveRole("spectator");
+    setPage("spectator");
   }
 
   function handleMatchEnd() {
@@ -77,13 +76,18 @@ function AppContent() {
     setPage("dashboard");
   }
 
-  // ── Render active page ───────────────────────────────────────────────────
+  // ── Page renderer ─────────────────────────────────────────────────────────
   function renderPage() {
     const sharedProps = { onNav: handleNav, onLogout: handleLogout };
 
     switch (page) {
       case "dashboard":
-        return <Dashboard {...sharedProps} />;
+        return (
+          <Dashboard
+            {...sharedProps}
+            onWatchMatch={handleWatchMatch}
+          />
+        );
 
       case "setup":
         return (
@@ -94,11 +98,22 @@ function AppContent() {
         );
 
       case "scorer":
+        // Full-screen — rendered outside sidebar shell below
         return (
           <MatchScorer
             {...sharedProps}
-            matchData={activeMatch}
+            matchData={activeMatch}       // ← pass the DB row; no second insert
+            role="scorer"
             onMatchEnd={handleMatchEnd}
+          />
+        );
+
+      case "spectator":
+        return (
+          <SpectatorView
+            {...sharedProps}
+            matchData={activeMatch}
+            onBack={() => setPage("dashboard")}
           />
         );
 
@@ -115,7 +130,6 @@ function AppContent() {
         return (
           <Profile
             {...sharedProps}
-            // Pass both: Supabase user (for magic-link) and player (for access-code)
             user={{
               id:    user?.id,
               email: user?.email,
@@ -126,49 +140,46 @@ function AppContent() {
         );
 
       case "admin":
-        // Guard: only admins can reach this page
-        if (!isAdmin) {
-          handleNav("dashboard");
-          return null;
-        }
+        if (!isAdmin) { handleNav("dashboard"); return null; }
         return <Admin {...sharedProps} user={user} player={player} />;
 
       default:
-        return <Dashboard {...sharedProps} />;
+        return <Dashboard {...sharedProps} onWatchMatch={handleWatchMatch} />;
     }
   }
 
-  // ── Full-screen pages — no sidebar shell ─────────────────────────────────
-  if (page === "scorer") {
-    return renderPage();
-  }
+  // ── Full-screen pages — no sidebar ────────────────────────────────────────
+  if (page === "scorer") return renderPage();
 
-  // ── Standard layout: sidebar + main content ──────────────────────────────
+  // ── Standard layout ───────────────────────────────────────────────────────
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#080a0f" }}>
-      <Sidebar
-        active={page}
-        user={sidebarUser}
-        onNav={handleNav}
-        onLogout={handleLogout}
-        role={activeRole || (isAdmin ? "admin" : "scorer")}
-      />
+      <style>{`
+        .sidebar-shell { width: 220px; flex-shrink: 0; }
+        .main-shell    { flex: 1; min-height: 100vh; min-width: 0; overflow-x: auto; }
 
-      <div style={{ marginLeft: "220px", flex: 1, minHeight: "100vh" }}>
-        <style>{`
-          @media (max-width: 768px) {
-            .app-main { margin-left: 0 !important; padding-bottom: 72px; }
-          }
-        `}</style>
-        <div className="app-main">
-          {renderPage()}
-        </div>
+        @media (max-width: 768px) {
+          .sidebar-shell { display: none; }
+          .main-shell    { padding-bottom: 72px; }
+        }
+      `}</style>
+
+      <div className="sidebar-shell">
+        <Sidebar
+          active={page}
+          user={sidebarUser}
+          onNav={handleNav}
+          onLogout={handleLogout}
+          role={activeRole || (isAdmin ? "admin" : "spectator")}
+        />
+      </div>
+
+      <div className="main-shell">
+        {renderPage()}
       </div>
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function App() {
   return (
