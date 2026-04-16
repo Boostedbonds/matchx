@@ -119,6 +119,96 @@ export async function createMatch(matchData) {
   }
 }
 
+// ─── Update match (scores, game state, etc.) ──────────────────────────────────
+export async function updateMatch(matchId, updates) {
+  try {
+    const { error } = await supabase
+      .from("matches")
+      .update(updates)
+      .eq("id", matchId);
+
+    if (error) {
+      console.error("updateMatch error:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("updateMatch unexpected:", err);
+    return false;
+  }
+}
+
+// ─── Finish a match (set status to completed + record winner) ─────────────────
+export async function finishMatch(matchId, winner) {
+  try {
+    const { error } = await supabase
+      .from("matches")
+      .update({ status: "completed", winner, finished_at: new Date().toISOString() })
+      .eq("id", matchId);
+
+    if (error) {
+      console.error("finishMatch error:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("finishMatch unexpected:", err);
+    return false;
+  }
+}
+
+// ─── Save a match event (rally, point, etc.) ──────────────────────────────────
+export async function saveEvent(matchId, event) {
+  try {
+    const { error } = await supabase
+      .from("match_events")
+      .insert([{ match_id: matchId, ...event }]);
+
+    if (error) {
+      console.error("saveEvent error:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("saveEvent unexpected:", err);
+    return false;
+  }
+}
+
+// ─── Update player stats after a match ───────────────────────────────────────
+export async function updatePlayerStats(playerId, { won, shotType }) {
+  try {
+    const { data: player, error: fetchError } = await supabase
+      .from("players")
+      .select("wins, losses, matches_played")
+      .eq("id", playerId)
+      .single();
+
+    if (fetchError) {
+      console.error("updatePlayerStats fetch error:", fetchError.message);
+      return false;
+    }
+
+    const { error: updateError } = await supabase
+      .from("players")
+      .update({
+        wins: (player.wins || 0) + (won ? 1 : 0),
+        losses: (player.losses || 0) + (won ? 0 : 1),
+        matches_played: (player.matches_played || 0) + 1,
+      })
+      .eq("id", playerId);
+
+    if (updateError) {
+      console.error("updatePlayerStats update error:", updateError.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("updatePlayerStats unexpected:", err);
+    return false;
+  }
+}
+
 // ─── Update match status ──────────────────────────────────────────────────────
 export async function updateMatchStatus(matchId, status) {
   try {

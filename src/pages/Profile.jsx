@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 import { supabase } from "../services/supabase";
-import Cropper from "react-easy-crop";
 
 function Profile({ user, onNav, onLogout }) {
   const [playerData, setPlayerData] = useState(null);
@@ -9,18 +8,14 @@ function Profile({ user, onNav, onLogout }) {
 
   const [uploading, setUploading] = useState(false);
 
-  // camera + crop
+  // camera
   const [showCamera, setShowCamera] = useState(false);
   const [imageSrc, setImageSrc] = useState(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
   const videoRef = useRef(null);
 
   useEffect(() => {
     fetchPlayer();
-    fetchHistory();
   }, [user]);
 
   // 🔥 GET OR CREATE PLAYER (AUTH BASED)
@@ -31,7 +26,6 @@ function Profile({ user, onNav, onLogout }) {
       .eq("auth_id", user.id)
       .maybeSingle();
 
-    // create player if first time
     if (!data) {
       const { data: newPlayer } = await supabase
         .from("players")
@@ -52,17 +46,6 @@ function Profile({ user, onNav, onLogout }) {
     }
   }
 
-  async function fetchHistory() {
-    const { data } = await supabase
-      .from("matches")
-      .select("*")
-      .or(`player1_id.eq.${playerData?.id},player2_id.eq.${playerData?.id}`)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    setMatchHistory(data || []);
-  }
-
   // 🎥 OPEN CAMERA
   async function startCamera() {
     setShowCamera(true);
@@ -81,49 +64,17 @@ function Profile({ user, onNav, onLogout }) {
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0);
 
-    setImageSrc(canvas.toDataURL("image/png"));
+    const image = canvas.toDataURL("image/png");
+    setImageSrc(image);
 
     video.srcObject.getTracks().forEach(t => t.stop());
   }
 
-  const onCropComplete = (_, pixels) => {
-    setCroppedAreaPixels(pixels);
-  };
-
-  async function getCroppedImage() {
-    const image = new Image();
-    image.src = imageSrc;
-
-    await new Promise(r => (image.onload = r));
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    canvas.width = croppedAreaPixels.width;
-    canvas.height = croppedAreaPixels.height;
-
-    ctx.drawImage(
-      image,
-      croppedAreaPixels.x,
-      croppedAreaPixels.y,
-      croppedAreaPixels.width,
-      croppedAreaPixels.height,
-      0,
-      0,
-      croppedAreaPixels.width,
-      croppedAreaPixels.height
-    );
-
-    return new Promise(resolve =>
-      canvas.toBlob(blob => resolve(blob), "image/png")
-    );
-  }
-
-  // 🔥 UPLOAD AVATAR (ONLY OWNER)
-  async function uploadCropped() {
+  // 🔥 UPLOAD AVATAR (NO CROPPING)
+  async function uploadImage() {
     if (!playerData || playerData.auth_id !== user.id) return;
 
-    const blob = await getCroppedImage();
+    const blob = await (await fetch(imageSrc)).blob();
     setUploading(true);
 
     const path = `players/${playerData.id}_${Date.now()}.png`;
@@ -178,19 +129,11 @@ function Profile({ user, onNav, onLogout }) {
           </div>
         )}
 
-        {/* CROPPER */}
+        {/* PREVIEW + SAVE */}
         {imageSrc && (
-          <div style={{ position: "relative", width: 300, height: 300 }}>
-            <Cropper
-              image={imageSrc}
-              crop={crop}
-              zoom={zoom}
-              aspect={1}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={onCropComplete}
-            />
-            <button onClick={uploadCropped}>Save Avatar</button>
+          <div>
+            <img src={imageSrc} style={{ width: 300 }} />
+            <button onClick={uploadImage}>Save Avatar</button>
           </div>
         )}
 
