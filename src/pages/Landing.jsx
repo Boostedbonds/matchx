@@ -93,6 +93,7 @@ function Landing() {
 
       {/* Background */}
       <div className="landing-bg">
+        <div className="racket-fade"></div>
         <div className="grid-lines"/>
         <div className="glow-orb orb1"/>
         <div className="glow-orb orb2"/>

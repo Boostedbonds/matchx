@@ -3,7 +3,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   BASE LAYOUT
+   BASE — full bleed, single canvas
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 .landing-container {
@@ -11,15 +11,12 @@
   width: 100%;
   min-height: 100vh;
   background: #000;
-  overflow-x: hidden;
-  overflow-y: auto;
-  display: flex;
-  align-items: stretch;
+  overflow: hidden;
   font-family: 'Rajdhani', sans-serif;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   BACKGROUND ELEMENTS
+   BACKGROUND LAYER
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 .landing-bg {
@@ -33,8 +30,8 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(0, 255, 200, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 200, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(0, 255, 200, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 200, 0.025) 1px, transparent 1px);
   background-size: 60px 60px;
   animation: gridMove 20s linear infinite;
 }
@@ -47,24 +44,24 @@
 .glow-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
+  filter: blur(100px);
   animation: pulse 4s ease-in-out infinite;
 }
 
 .orb1 {
-  width: 600px;
-  height: 600px;
-  background: rgba(0, 255, 200, 0.06);
-  top: -150px;
-  right: -100px;
+  width: 700px;
+  height: 700px;
+  background: rgba(0, 255, 200, 0.07);
+  top: -200px;
+  left: -100px;
 }
 
 .orb2 {
-  width: 400px;
-  height: 400px;
+  width: 500px;
+  height: 500px;
   background: rgba(0, 180, 255, 0.05);
-  bottom: -100px;
-  left: -50px;
+  bottom: -150px;
+  right: 200px;
   animation-delay: 2s;
 }
 
@@ -73,26 +70,17 @@
   50% { opacity: 0.9; transform: scale(1.1); }
 }
 
-.vignette {
-  position: fixed;
-  inset: 0;
-  z-index: 2;
-  background: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 30%, rgba(0,0,0,0.5) 100%);
-  pointer-events: none;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════════
-   RACKET — moved to center-left so it fills the dead zone
+   RACKET — full bleed, center-stage
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 .racket-bg {
   position: fixed;
   top: 50%;
-  /* ↓ was 10% — now sits under the brand text, closing the center gap */
-  left: 30%;
+  left: 38%;
   transform: translate(-50%, -50%) rotate(-18deg);
-  width: 55vw;
-  max-width: 700px;
+  width: 72vw;
+  max-width: 900px;
   height: auto;
   pointer-events: none;
   z-index: 1;
@@ -102,6 +90,17 @@
 
 .racket-bg.loaded {
   opacity: 1;
+}
+
+/* Radial fade — racket dissolves into darkness on all sides, no hard cutoff */
+.racket-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  background:
+    radial-gradient(ellipse 55% 80% at 38% 50%, transparent 40%, #000 85%),
+    radial-gradient(ellipse 30% 100% at 100% 50%, #000 0%, transparent 60%);
+  pointer-events: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -114,7 +113,7 @@
   height: 56px;
   border-color: rgba(0, 255, 200, 0.15);
   border-style: solid;
-  z-index: 10;
+  z-index: 20;
 }
 
 .c-tl { top: 22px; left: 22px; border-width: 2px 0 0 2px; }
@@ -123,17 +122,16 @@
 .c-br { bottom: 22px; right: 22px; border-width: 0 2px 2px 0; }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   SPLIT LAYOUT — LEFT BRAND / RIGHT LOGIN
+   CONTENT — single full-height flex row
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 .content {
   position: relative;
   z-index: 10;
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
   width: 100%;
   min-height: 100vh;
+  display: flex;
+  align-items: center;
   opacity: 0;
   transform: translateY(20px);
   transition: all 0.8s ease;
@@ -144,47 +142,62 @@
   transform: translateY(0);
 }
 
-/* LEFT PANEL — Branding — flex:1 already fills all remaining width */
+/* ═══════════════════════════════════════════════════════════════════════════════
+   BRAND PANEL — no background, no border, bleeds into canvas
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 .brand-panel {
   flex: 1;
-  min-width: 0;                     /* prevents long text blowing out the flex item */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  /* ↓ increased right padding so content spreads toward center */
-  padding: 80px 80px 80px 80px;
-  position: relative;
+  padding: 80px 60px 80px 80px;
 }
 
-/* RIGHT PANEL — Login */
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LOGIN PANEL — glass card floating on the canvas, no structural divider
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 .login-panel {
-  /* ↓ reduced from 460px — gives more horizontal room to brand panel */
-  width: 420px;
+  width: 400px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 60px 44px;
-  background: rgba(0, 0, 0, 0.55);
-  border-left: 1px solid rgba(0, 255, 200, 0.08);
-  backdrop-filter: blur(20px);
+  padding: 52px 44px;
+  margin: 40px 48px 40px 0;
+
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(0, 255, 200, 0.12);
+  border-radius: 4px;
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+
+  box-shadow:
+    inset 0 1px 0 rgba(0, 255, 200, 0.15),
+    0 0 80px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(0, 0, 0, 0.4);
+
   position: relative;
+  overflow: hidden;
 }
 
+/* Thin teal shimmer at top edge of the card only */
 .login-panel::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 0;
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(to bottom, transparent, rgba(0,255,200,0.4), transparent);
+  left: 10%;
+  width: 80%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 200, 0.6), transparent);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   BRAND PANEL ELEMENTS
+   BRAND ELEMENTS
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 .badge {
@@ -279,7 +292,7 @@
   letter-spacing: 3px;
   color: rgba(255, 255, 255, 0.12);
   text-transform: uppercase;
-  z-index: 10;
+  z-index: 20;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -289,11 +302,6 @@
 @keyframes fadeSlideDown {
   from { opacity: 0; transform: translateY(-15px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes shuttleFloat {
-  0%, 100% { opacity: 0.6; transform: translateY(0px) rotate(-20deg); }
-  50% { opacity: 1; transform: translateY(-40px) rotate(10deg); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -306,44 +314,42 @@
   }
 
   .login-panel {
-    width: 380px;
-    padding: 50px 32px;
+    width: 360px;
+    margin: 40px 36px 40px 0;
+    padding: 44px 32px;
   }
 
   .racket-bg {
-    left: 30%;
-    width: 65vw;
+    left: 40%;
+    width: 80vw;
   }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   RESPONSIVE — MOBILE (stack vertically)
+   RESPONSIVE — MOBILE
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
   .landing-container {
     overflow-y: auto;
+    min-height: 100dvh;
   }
 
   .content {
     flex-direction: column;
-    min-height: 100vh;
+    align-items: stretch;
+    min-height: 100dvh;
+    padding-bottom: 40px;
   }
 
   .brand-panel {
-    flex: none;
-    padding: 80px 28px 32px;
+    padding: 80px 28px 24px;
     align-items: center;
     text-align: center;
   }
 
-  .logo {
-    text-align: center;
-  }
-
-  .logo span {
-    display: inline;
-  }
+  .logo { text-align: center; }
+  .logo span { display: inline; }
 
   .divider {
     background: linear-gradient(90deg, transparent, #00ffc8, transparent);
@@ -358,20 +364,22 @@
   }
 
   .login-panel {
-    width: 100%;
-    border-left: none;
-    border-top: 1px solid rgba(0, 255, 200, 0.08);
-    padding: 36px 24px 60px;
-    backdrop-filter: blur(10px);
+    width: calc(100% - 48px);
+    margin: 0 24px 24px;
+    padding: 36px 24px;
+    backdrop-filter: blur(16px);
   }
 
-  .login-panel::before { display: none; }
+  .racket-fade {
+    background:
+      radial-gradient(ellipse 100% 60% at 50% 30%, transparent 30%, #000 80%);
+  }
 
   .racket-bg {
-    top: 30%;
+    top: 28%;
     left: 50%;
-    width: 90vw;
-    opacity: 0.4 !important;
+    width: 95vw;
+    opacity: 0.35 !important;
     transform: translate(-50%, -50%) rotate(-15deg);
   }
 
