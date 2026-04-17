@@ -82,13 +82,14 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   RACKET — LEFT SIDE DECORATION
+   RACKET — moved to center-left so it fills the dead zone
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 .racket-bg {
   position: fixed;
   top: 50%;
-  left: 10%;
+  /* ↓ was 10% — now sits under the brand text, closing the center gap */
+  left: 30%;
   transform: translate(-50%, -50%) rotate(-18deg);
   width: 55vw;
   max-width: 700px;
@@ -143,26 +144,29 @@
   transform: translateY(0);
 }
 
-/* LEFT PANEL — Branding */
+/* LEFT PANEL — Branding — flex:1 already fills all remaining width */
 .brand-panel {
   flex: 1;
+  min-width: 0;                     /* prevents long text blowing out the flex item */
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  padding: 80px 60px 80px 80px;
+  /* ↓ increased right padding so content spreads toward center */
+  padding: 80px 80px 80px 80px;
   position: relative;
 }
 
 /* RIGHT PANEL — Login */
 .login-panel {
-  width: 460px;
+  /* ↓ reduced from 460px — gives more horizontal room to brand panel */
+  width: 420px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 60px 50px;
+  padding: 60px 44px;
   background: rgba(0, 0, 0, 0.55);
   border-left: 1px solid rgba(0, 255, 200, 0.08);
   backdrop-filter: blur(20px);
@@ -302,13 +306,13 @@
   }
 
   .login-panel {
-    width: 400px;
-    padding: 50px 36px;
+    width: 380px;
+    padding: 50px 32px;
   }
 
   .racket-bg {
-    left: 5%;
-    width: 60vw;
+    left: 30%;
+    width: 65vw;
   }
 }
 
