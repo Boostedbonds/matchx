@@ -16,13 +16,18 @@ import Admin       from "./pages/Admin";
 import Setup       from "./pages/Setup";
 import MatchScorer from "./pages/MatchScorer";
 import Sidebar     from "./components/Sidebar";
+import ScorerPrompt   from "./components/ScorerPrompt";
+import ScorerHandoff  from "./components/ScorerHandoff";
 
 function AppContent() {
   const { isAuthenticated, loading, user, player, logout, isAdmin, role, updateRole } = useAuth();
 
-  const [ready,       setReady]       = useState(false);
-  const [page,        setPage]        = useState("dashboard");
-  const [activeMatch, setActiveMatch] = useState(null);
+  const [ready,           setReady]           = useState(false);
+  const [page,            setPage]            = useState("dashboard");
+  const [activeMatch,     setActiveMatch]     = useState(null);
+  const [showScorerPrompt, setShowScorerPrompt] = useState(false);
+  const [pendingMatch,    setPendingMatch]    = useState(null);   // match waiting for role confirm
+  const [showHandoff,     setShowHandoff]     = useState(false);  // QR handoff modal
 
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 300);
@@ -53,22 +58,48 @@ function AppContent() {
     await logout();
   }
 
+  // ─── Called by Setup when players are selected and Start Match is tapped ───
+  // Instead of immediately becoming scorer, show the "become scorer?" prompt
   function handleStartMatch(matchData) {
-    setActiveMatch(matchData);
-    // When starting a match, user becomes scorer
+    setPendingMatch(matchData);
+    setShowScorerPrompt(true);
+  }
+
+  // ─── User confirmed they want to be scorer ─────────────────────────────────
+  function handleConfirmScorer() {
+    setShowScorerPrompt(false);
     updateRole("scorer");
+    setActiveMatch(pendingMatch);
+    setPendingMatch(null);
     setPage("scorer");
   }
 
+  // ─── User declined — enter as spectator ───────────────────────────────────
+  function handleDeclineScorer() {
+    setShowScorerPrompt(false);
+    updateRole("spectator");
+    setActiveMatch(pendingMatch);
+    setPendingMatch(null);
+    setPage("scorer");
+  }
+
+  // ─── Called from Dashboard live match tiles ────────────────────────────────
   function handleWatchMatch(matchData) {
     setActiveMatch(matchData);
-    // Watching live = spectator
     updateRole("spectator");
     setPage("scorer");
   }
 
+  // ─── Scorer hands off to another phone via QR ─────────────────────────────
+  function handleHandoffAccepted() {
+    // The new scorer scanned the QR — this device drops to spectator
+    setShowHandoff(false);
+    updateRole("spectator");
+  }
+
   function handleMatchEnd() {
     setActiveMatch(null);
+    updateRole("spectator"); // ✅ always reset to spectator after match
     setPage("dashboard");
   }
 
@@ -79,6 +110,8 @@ function AppContent() {
       case "dashboard":
         return <Dashboard {...sharedProps} onWatchMatch={handleWatchMatch} />;
 
+      // ✅ THIS WAS MISSING — "New Match" nav item now resolves here
+      case "newmatch":
       case "setup":
         return (
           <Setup
@@ -89,12 +122,24 @@ function AppContent() {
 
       case "scorer":
         return (
-          <MatchScorer
-            {...sharedProps}
-            matchData={activeMatch}
-            role={role}
-            onMatchEnd={handleMatchEnd}
-          />
+          <>
+            <MatchScorer
+              {...sharedProps}
+              matchData={activeMatch}
+              role={role}
+              onMatchEnd={handleMatchEnd}
+              onHandoff={() => setShowHandoff(true)}  // scorer can open QR handoff
+            />
+            {/* QR handoff modal — only visible to current scorer */}
+            {showHandoff && role === "scorer" && (
+              <ScorerHandoff
+                matchId={activeMatch?.id}
+                matchData={activeMatch}
+                onClose={() => setShowHandoff(false)}
+                onHandoffAccepted={handleHandoffAccepted}
+              />
+            )}
+          </>
         );
 
       case "tournament":
@@ -116,10 +161,7 @@ function AppContent() {
         );
 
       case "admin":
-        if (!isAdmin) {
-          handleNav("dashboard");
-          return null;
-        }
+        if (!isAdmin) { handleNav("dashboard"); return null; }
         return <Admin {...sharedProps} user={user} player={player} />;
 
       default:
@@ -127,9 +169,20 @@ function AppContent() {
     }
   }
 
-  // Scorer is full-screen, no sidebar
+  // Scorer page is full-screen — no sidebar
   if (page === "scorer") {
-    return renderPage();
+    return (
+      <>
+        {renderPage()}
+        {/* Scorer prompt shown over the scorer page if somehow triggered there */}
+        {showScorerPrompt && (
+          <ScorerPrompt
+            onConfirm={handleConfirmScorer}
+            onDecline={handleDeclineScorer}
+          />
+        )}
+      </>
+    );
   }
 
   return (
@@ -152,6 +205,14 @@ function AppContent() {
           {renderPage()}
         </div>
       </div>
+
+      {/* "Become scorer?" modal — shown over the setup/dashboard pages */}
+      {showScorerPrompt && (
+        <ScorerPrompt
+          onConfirm={handleConfirmScorer}
+          onDecline={handleDeclineScorer}
+        />
+      )}
     </div>
   );
 }

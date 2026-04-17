@@ -4,6 +4,7 @@
  *
  * Receives `matchData` (DB row from Setup) — does NOT create a second match.
  * Role: "scorer" gets scoring controls; "spectator" gets read-only view.
+ * New: onHandoff prop opens the QR handoff modal in App.jsx
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -51,6 +52,8 @@ const STYLES = `
     font-family: 'JetBrains Mono', monospace; font-size: 10px;
     letter-spacing: 0.15em; color: rgba(212,175,55,0.5);
     padding: 6px 12px; border: 1px solid rgba(212,175,55,0.15);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 260px;
   }
 
   .scorer-exit-btn {
@@ -60,6 +63,31 @@ const STYLES = `
     letter-spacing: 0.12em; cursor: pointer; transition: all 0.2s;
   }
   .scorer-exit-btn:hover { border-color: #ff6464; color: #ff6464; }
+
+  /* ── Handoff button ── */
+  .scorer-handoff-btn {
+    background: transparent;
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    color: rgba(212, 175, 55, 0.7);
+    padding: 6px 14px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.1em; cursor: pointer; transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .scorer-handoff-btn:hover {
+    border-color: #ffd700; color: #ffd700;
+    background: rgba(212,175,55,0.06);
+  }
+
+  /* ── Spectator role badge ── */
+  .scorer-role-badge {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    padding: 5px 12px;
+    border: 1px solid rgba(0, 136, 255, 0.25);
+    color: rgba(0, 136, 255, 0.7);
+    background: rgba(0, 136, 255, 0.06);
+  }
 
   /* ── Main area ── */
   .scorer-body {
@@ -194,6 +222,8 @@ const STYLES = `
   .ctrl-btn:hover { background: rgba(212,175,55,0.1); color: #ffd700; }
   .ctrl-btn.danger { border-color: rgba(255,80,80,0.2); color: rgba(255,100,100,0.6); }
   .ctrl-btn.danger:hover { background: rgba(255,80,80,0.08); color: #ff6464; }
+  .ctrl-btn.handoff { border-color: rgba(212,175,55,0.2); color: rgba(212,175,55,0.6); }
+  .ctrl-btn.handoff:hover { border-color: #ffd700; color: #ffd700; }
 
   /* ── Commentary ── */
   .commentary-box {
@@ -242,9 +272,9 @@ const STYLES = `
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
 
-export default function MatchScorer({ onNav, onLogout, matchData, role = "spectator", onMatchEnd }) {
+export default function MatchScorer({ onNav, onLogout, matchData, role = "spectator", onMatchEnd, onHandoff }) {
   const [match,       setMatch]       = useState(null);
-  const [shotPicker,  setShotPicker]  = useState(null); // "p1" | "p2" | null
+  const [shotPicker,  setShotPicker]  = useState(null);
   const commentaryRef = useRef(null);
 
   const isScorer = role === "scorer";
@@ -257,19 +287,18 @@ export default function MatchScorer({ onNav, onLogout, matchData, role = "specta
       id:     matchData.player1_id,
       name:   matchData.player1_name || "Player 1",
       init:   (matchData.player1_name || "P1").slice(0, 2).toUpperCase(),
-      club:   matchData.player1_club || "",
+      club:   matchData.player1_club  || "",
       rating: matchData.player1_rating || 1500,
     };
     const p2 = {
       id:     matchData.player2_id,
       name:   matchData.player2_name || "Player 2",
       init:   (matchData.player2_name || "P2").slice(0, 2).toUpperCase(),
-      club:   matchData.player2_club || "",
+      club:   matchData.player2_club  || "",
       rating: matchData.player2_rating || 1500,
     };
 
-    const engineState = createMatchState(p1, p2);
-    setMatch(engineState);
+    setMatch(createMatchState(p1, p2));
   }, [matchData]);
 
   // ── Realtime: spectator receives DB updates ────────────────────────────────
@@ -282,10 +311,9 @@ export default function MatchScorer({ onNav, onLogout, matchData, role = "specta
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchData.id}` },
         (payload) => {
-          // For spectator: reflect score from DB
           setMatch(prev => {
             if (!prev) return prev;
-            const row = payload.new;
+            const row     = payload.new;
             const updated = { ...prev };
             if (row.score_a !== undefined) updated.scores[0].p1 = row.score_a;
             if (row.score_b !== undefined) updated.scores[0].p2 = row.score_b;
@@ -304,9 +332,7 @@ export default function MatchScorer({ onNav, onLogout, matchData, role = "specta
 
   // Auto-scroll commentary
   useEffect(() => {
-    if (commentaryRef.current) {
-      commentaryRef.current.scrollTop = 0;
-    }
+    if (commentaryRef.current) commentaryRef.current.scrollTop = 0;
   }, [match?.commentary]);
 
   if (!match) {
@@ -402,14 +428,27 @@ export default function MatchScorer({ onNav, onLogout, matchData, role = "specta
         {/* TOP BAR */}
         <div className="scorer-topbar">
           <div className="scorer-logo">MATCH<span style={{ color: "#00e6a0" }}>X</span></div>
+
+          {/* Spectator badge */}
+          {!isScorer && <div className="scorer-role-badge">👁 Spectator View</div>}
+
           {shareUrl && (
-            <div className="scorer-share">
-              👁 {shareUrl}
-            </div>
+            <div className="scorer-share">👁 {shareUrl}</div>
           )}
-          <div style={{ display: "flex", gap: 8 }}>
+
+          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+            {/* ✅ Hand Off button — only scorer sees this */}
+            {isScorer && onHandoff && (
+              <button className="scorer-handoff-btn" onClick={onHandoff}>
+                📲 Hand Off
+              </button>
+            )}
             {isScorer && (
-              <button className="ctrl-btn danger" style={{ flex: "none", padding: "6px 14px", fontSize: 12 }} onClick={handleEndMatch}>
+              <button
+                className="ctrl-btn danger"
+                style={{ flex: "none", padding: "6px 14px", fontSize: 12 }}
+                onClick={handleEndMatch}
+              >
                 END MATCH
               </button>
             )}
@@ -498,11 +537,16 @@ export default function MatchScorer({ onNav, onLogout, matchData, role = "specta
           {isScorer && isLive && !shotPicker && (
             <div className="scorer-controls">
               <button className="ctrl-btn" onClick={handleUndo}>↩ UNDO</button>
+              {onHandoff && (
+                <button className="ctrl-btn handoff" onClick={onHandoff}>
+                  📲 HAND OFF SCORING
+                </button>
+              )}
             </div>
           )}
 
           {/* COMMENTARY */}
-          {match.commentary.length > 0 && (
+          {match.commentary?.length > 0 && (
             <div className="commentary-box" ref={commentaryRef}>
               {match.commentary.map((line, i) => (
                 <div key={i} className="commentary-line">{line}</div>
