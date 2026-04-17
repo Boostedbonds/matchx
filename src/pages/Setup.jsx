@@ -253,6 +253,15 @@ const STYLES = `
     letter-spacing: 0.12em; color: rgba(255,100,100,0.6); text-transform: uppercase;
   }
 
+  /* ── Error message ── */
+  .setup-error {
+    text-align: center; margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; color: rgba(255,80,80,0.9); text-transform: uppercase;
+    background: rgba(255,0,0,0.08); border: 1px solid rgba(255,0,0,0.2);
+    padding: 10px 16px;
+  }
+
   @media (max-width: 640px) {
     .teams-grid { grid-template-columns: 1fr; }
     .team-vs { display: none; }
@@ -328,18 +337,17 @@ function AutocompleteInput({ placeholder, value, onChange, players, label }) {
 }
 
 export default function Setup({ onStartMatch, onBack }) {
-  const [matchType, setMatchType] = useState("singles"); // singles | doubles
+  const [matchType, setMatchType] = useState("singles");
   const [gameCount, setGameCount] = useState(3);
   const [playersDB, setPlayersDB] = useState([]);
 
-  // Team names
   const [teamAName, setTeamAName] = useState("Team A");
   const [teamBName, setTeamBName] = useState("Team B");
 
-  // Players: A1, A2 for doubles; B1, B2 for doubles
   const [players, setPlayers] = useState({ A1: "", A2: "", B1: "", B2: "" });
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [focusedTeam, setFocusedTeam] = useState(null);
 
   useEffect(() => { fetchPlayers(); }, []);
@@ -355,14 +363,29 @@ export default function Setup({ onStartMatch, onBack }) {
 
   async function getOrCreatePlayer(name) {
     if (!name.trim()) return null;
-    const { data } = await supabase.from("players").select("*").eq("name", name.trim()).limit(1);
+
+    const { data, error } = await supabase
+      .from("players")
+      .select("*")
+      .eq("name", name.trim())
+      .limit(1);
+
+    if (error) throw new Error(`Failed to look up player "${name}": ${error.message}`);
     if (data && data.length > 0) return data[0];
 
     const username = name.toLowerCase().replace(/\s/g, "") + "_" + Date.now().toString().slice(-4);
-    const { data: np } = await supabase.from("players").insert({
-      name: name.trim(), username, elo: 1500, wins: 0, losses: 0,
-      avatar_url: getRandomAvatar(),
-    }).select().single();
+    const { data: np, error: insertError } = await supabase
+      .from("players")
+      .insert({
+        name: name.trim(), username, elo: 1500, wins: 0, losses: 0,
+        avatar_url: getRandomAvatar(),
+      })
+      .select()
+      .single();
+
+    if (insertError) throw new Error(`Failed to create player "${name}": ${insertError.message}`);
+    if (!np) throw new Error(`Player "${name}" was not returned after insert. Check Supabase RLS policies.`);
+
     return np;
   }
 
@@ -374,6 +397,8 @@ export default function Setup({ onStartMatch, onBack }) {
   async function createMatch() {
     if (!requiredFilled || loading) return;
     setLoading(true);
+    setError(null);
+
     try {
       const p1 = await getOrCreatePlayer(players.A1);
       const p2 = await getOrCreatePlayer(players.B1);
@@ -383,23 +408,33 @@ export default function Setup({ onStartMatch, onBack }) {
       const teamALabel = teamAName || "Team A";
       const teamBLabel = teamBName || "Team B";
 
-      const { data } = await supabase.from("matches").insert({
-        player1_id: p1.id,
-        player2_id: p2.id,
-        player1_name: isDoubles ? `${p1.name} / ${p3?.name}` : p1.name,
-        player2_name: isDoubles ? `${p2.name} / ${p4?.name}` : p2.name,
-        team_a_name: teamALabel,
-        team_b_name: teamBLabel,
-        status: "live",
-        match_type: matchType,
-        game_count: gameCount,
-        score_a: 0, score_b: 0,
-        ...(isDoubles && { player3_id: p3?.id, player4_id: p4?.id }),
-      }).select().single();
+      const { data, error: matchError } = await supabase
+        .from("matches")
+        .insert({
+          player1_id: p1.id,
+          player2_id: p2.id,
+          player1_name: isDoubles ? `${p1.name} / ${p3?.name}` : p1.name,
+          player2_name: isDoubles ? `${p2.name} / ${p4?.name}` : p2.name,
+          team_a_name: teamALabel,
+          team_b_name: teamBLabel,
+          status: "live",
+          match_type: matchType,
+          game_count: gameCount,
+          score_a: 0,
+          score_b: 0,
+          ...(isDoubles && { player3_id: p3?.id, player4_id: p4?.id }),
+        })
+        .select()
+        .single();
+
+      if (matchError) throw new Error(`Match insert failed: ${matchError.message}`);
+      if (!data) throw new Error("Match was not returned after insert. Check Supabase RLS policies on the matches table.");
 
       onStartMatch(data);
+
     } catch (err) {
       console.error("Match creation error:", err);
+      setError(err.message || "Something went wrong. Check the console for details.");
     } finally {
       setLoading(false);
     }
@@ -533,6 +568,10 @@ export default function Setup({ onStartMatch, onBack }) {
                 ? "Enter all 4 players to continue"
                 : "Enter both players to continue"}
             </div>
+          )}
+
+          {error && (
+            <div className="setup-error">⚠ {error}</div>
           )}
 
         </div>
