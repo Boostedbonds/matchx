@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import { loginOrRegister, loginWithMagicLink } from "../services/auth";
 import "./LoginCard.css";
 
@@ -11,6 +12,8 @@ export default function LoginCard() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [smashing, setSmashing] = useState(false);
+
+  const { setPlayer } = useAuth();
 
   function triggerSmash() {
     setSmashing(true);
@@ -34,7 +37,14 @@ export default function LoginCard() {
       setSuccess(isNew ? "✓ Profile created! Entering arena..." : "✓ Welcome back! Entering arena...");
       setName("");
       setCode("");
-      setTimeout(() => window.location.href = "/dashboard", 1500);
+
+      // ✅ Update AuthContext so App.jsx re-renders to Dashboard
+      setPlayer({
+        id:         player.id,
+        name:       player.name,
+        elo:        player.elo,
+        avatar_url: player.avatar_url,
+      });
     } catch (err) {
       setError(err.message || "Could not connect. Try again.");
     } finally {
