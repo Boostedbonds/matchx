@@ -22,22 +22,56 @@ import ScorerHandoff  from "./components/ScorerHandoff";
 function AppContent() {
   const { isAuthenticated, loading, user, player, logout, isAdmin, role, updateRole } = useAuth();
 
-  const [ready,           setReady]           = useState(false);
-  const [page,            setPage]            = useState("dashboard");
-  const [activeMatch,     setActiveMatch]     = useState(null);
-  const [showScorerPrompt, setShowScorerPrompt] = useState(false);
-  const [pendingMatch,    setPendingMatch]    = useState(null);   // match waiting for role confirm
-  const [showHandoff,     setShowHandoff]     = useState(false);  // QR handoff modal
+  const [ready,            setReady]            = useState(false);
+  const [page,             setPage]             = useState("dashboard");
+  const [activeMatch,      setActiveMatch]       = useState(null);
+  const [showScorerPrompt, setShowScorerPrompt]  = useState(false);
+  const [pendingMatch,     setPendingMatch]      = useState(null);
+  const [showHandoff,      setShowHandoff]       = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(t);
   }, []);
 
+  // ── FIX: Check URL for QR scorer handoff token on mount ──────────────────
+  // When a new phone scans the QR code, the URL contains ?scorer=1&matchId=xxx
+  // We detect this and immediately grant scorer role + load the match
+  useEffect(() => {
+    if (!isAuthenticated || !ready) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const isScorerHandoff = params.get("scorer") === "1";
+    const handoffMatchId  = params.get("matchId");
+
+    if (isScorerHandoff && handoffMatchId) {
+      // Clean the URL
+      window.history.replaceState({}, "", window.location.pathname);
+      // Load match and grant scorer role
+      loadMatchAndBecomeScorer(handoffMatchId);
+    }
+  }, [isAuthenticated, ready]);
+
+  async function loadMatchAndBecomeScorer(matchId) {
+    const { supabase } = await import("./services/supabase");
+    const { data, error } = await supabase
+      .from("matches")
+      .select("*")
+      .eq("id", matchId)
+      .single();
+
+    if (data && !error) {
+      updateRole("scorer");
+      setActiveMatch(data);
+      setPage("scorer");
+    }
+  }
+
   if (loading || !ready) {
     return <div style={{ background: "#000", height: "100vh" }} />;
   }
 
+  // ── FIX 1: Show landing page if not authenticated ─────────────────────────
   if (!isAuthenticated) {
     return <Landing />;
   }
@@ -45,7 +79,7 @@ function AppContent() {
   const sidebarUser = {
     name:       player?.name       || user?.email?.split("@")[0] || "Player",
     init:       (player?.name      || user?.email || "PL").slice(0, 2).toUpperCase(),
-    rating:     player?.elo        || 1500,
+    rating:     player?.elo        || 1000,
     avatar_url: player?.avatar_url || null,
     isAdmin,
   };
@@ -58,14 +92,11 @@ function AppContent() {
     await logout();
   }
 
-  // ─── Called by Setup when players are selected and Start Match is tapped ───
-  // Instead of immediately becoming scorer, show the "become scorer?" prompt
   function handleStartMatch(matchData) {
     setPendingMatch(matchData);
     setShowScorerPrompt(true);
   }
 
-  // ─── User confirmed they want to be scorer ─────────────────────────────────
   function handleConfirmScorer() {
     setShowScorerPrompt(false);
     updateRole("scorer");
@@ -74,7 +105,6 @@ function AppContent() {
     setPage("scorer");
   }
 
-  // ─── User declined — enter as spectator ───────────────────────────────────
   function handleDeclineScorer() {
     setShowScorerPrompt(false);
     updateRole("spectator");
@@ -83,23 +113,36 @@ function AppContent() {
     setPage("scorer");
   }
 
-  // ─── Called from Dashboard live match tiles ────────────────────────────────
   function handleWatchMatch(matchData) {
     setActiveMatch(matchData);
     updateRole("spectator");
     setPage("scorer");
   }
 
-  // ─── Scorer hands off to another phone via QR ─────────────────────────────
+  // ── FIX 3: Handoff accepted — new scorer takes over, OLD device drops to spectator
   function handleHandoffAccepted() {
-    // The new scorer scanned the QR — this device drops to spectator
     setShowHandoff(false);
     updateRole("spectator");
+    // Refresh match data so score is current
+    if (activeMatch?.id) {
+      refreshActiveMatch(activeMatch.id);
+    }
+  }
+
+  // ── FIX 4: When new scorer scans QR and takes over, refresh match data ────
+  async function refreshActiveMatch(matchId) {
+    const { supabase } = await import("./services/supabase");
+    const { data } = await supabase
+      .from("matches")
+      .select("*")
+      .eq("id", matchId)
+      .single();
+    if (data) setActiveMatch(data);
   }
 
   function handleMatchEnd() {
     setActiveMatch(null);
-    updateRole("spectator"); // ✅ always reset to spectator after match
+    updateRole("spectator");
     setPage("dashboard");
   }
 
@@ -110,7 +153,6 @@ function AppContent() {
       case "dashboard":
         return <Dashboard {...sharedProps} onWatchMatch={handleWatchMatch} />;
 
-      // ✅ THIS WAS MISSING — "New Match" nav item now resolves here
       case "newmatch":
       case "setup":
         return (
@@ -128,9 +170,8 @@ function AppContent() {
               matchData={activeMatch}
               role={role}
               onMatchEnd={handleMatchEnd}
-              onHandoff={() => setShowHandoff(true)}  // scorer can open QR handoff
+              onHandoff={() => setShowHandoff(true)}
             />
-            {/* QR handoff modal — only visible to current scorer */}
             {showHandoff && role === "scorer" && (
               <ScorerHandoff
                 matchId={activeMatch?.id}
@@ -174,7 +215,6 @@ function AppContent() {
     return (
       <>
         {renderPage()}
-        {/* Scorer prompt shown over the scorer page if somehow triggered there */}
         {showScorerPrompt && (
           <ScorerPrompt
             onConfirm={handleConfirmScorer}
@@ -195,18 +235,26 @@ function AppContent() {
         role={isAdmin ? "admin" : role}
       />
 
-      <div style={{ marginLeft: "220px", flex: 1, minHeight: "100vh" }}>
+      {/* FIX 5: marginLeft only on desktop, 0 on mobile (sidebar is bottom nav on mobile) */}
+      <div style={{ flex: 1, minHeight: "100vh", width: "100%" }}>
         <style>{`
+          .app-main-wrap {
+            margin-left: 220px;
+          }
           @media (max-width: 768px) {
-            .app-main { margin-left: 0 !important; padding-bottom: 72px; }
+            .app-main-wrap {
+              margin-left: 0 !important;
+              padding-bottom: 72px;
+              width: 100%;
+              overflow-x: hidden;
+            }
           }
         `}</style>
-        <div className="app-main" style={{ marginLeft: 0 }}>
+        <div className="app-main-wrap">
           {renderPage()}
         </div>
       </div>
 
-      {/* "Become scorer?" modal — shown over the setup/dashboard pages */}
       {showScorerPrompt && (
         <ScorerPrompt
           onConfirm={handleConfirmScorer}

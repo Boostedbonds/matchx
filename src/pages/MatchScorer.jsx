@@ -1,10 +1,6 @@
 /**
  * MatchScorer.jsx
  * src/pages/MatchScorer.jsx
- *
- * Receives `matchData` (DB row from Setup) — does NOT create a second match.
- * Role: "scorer" gets scoring controls; "spectator" gets read-only view.
- * New: onHandoff prop opens the QR handoff modal in App.jsx
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -34,7 +30,6 @@ const STYLES = `
     display: flex; flex-direction: column;
   }
 
-  /* ── Top bar ── */
   .scorer-topbar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 16px 24px;
@@ -64,7 +59,6 @@ const STYLES = `
   }
   .scorer-exit-btn:hover { border-color: #ff6464; color: #ff6464; }
 
-  /* ── Handoff button ── */
   .scorer-handoff-btn {
     background: transparent;
     border: 1px solid rgba(212, 175, 55, 0.25);
@@ -79,7 +73,6 @@ const STYLES = `
     background: rgba(212,175,55,0.06);
   }
 
-  /* ── Spectator role badge ── */
   .scorer-role-badge {
     font-family: 'JetBrains Mono', monospace; font-size: 9px;
     letter-spacing: 0.15em; text-transform: uppercase;
@@ -89,14 +82,12 @@ const STYLES = `
     background: rgba(0, 136, 255, 0.06);
   }
 
-  /* ── Main area ── */
   .scorer-body {
     flex: 1; display: flex; flex-direction: column;
     max-width: 900px; margin: 0 auto; width: 100%;
     padding: 24px 20px 40px;
   }
 
-  /* ── Scoreboard ── */
   .scorer-board {
     display: grid; grid-template-columns: 1fr auto 1fr;
     gap: 0; align-items: stretch;
@@ -147,7 +138,6 @@ const STYLES = `
     text-transform: uppercase;
   }
 
-  /* middle column */
   .scorer-mid {
     display: flex; flex-direction: column; align-items: center;
     justify-content: center; padding: 16px 12px; gap: 8px;
@@ -165,9 +155,7 @@ const STYLES = `
     color: rgba(212,175,55,0.6); letter-spacing: 0.05em;
   }
 
-  .scorer-games-won {
-    display: flex; gap: 4px;
-  }
+  .scorer-games-won { display: flex; gap: 4px; }
 
   .gw-dot {
     width: 10px; height: 10px; border-radius: 50%;
@@ -175,7 +163,6 @@ const STYLES = `
   }
   .gw-dot.won { background: #ffd700; box-shadow: 0 0 6px rgba(255,215,0,0.5); }
 
-  /* ── Shot picker ── */
   .shot-picker {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
     margin-bottom: 20px;
@@ -191,9 +178,7 @@ const STYLES = `
     background: rgba(212,175,55,0.04); border: 1px solid rgba(212,175,55,0.12);
     cursor: pointer; transition: all 0.15s; color: #e8e0d0;
   }
-  .shot-btn:hover {
-    background: rgba(0,230,160,0.08); border-color: rgba(0,230,160,0.3);
-  }
+  .shot-btn:hover { background: rgba(0,230,160,0.08); border-color: rgba(0,230,160,0.3); }
   .shot-icon { font-size: 20px; }
   .shot-label {
     font-family: 'JetBrains Mono', monospace; font-size: 9px;
@@ -207,7 +192,6 @@ const STYLES = `
     margin-bottom: 10px; text-align: center;
   }
 
-  /* ── Controls ── */
   .scorer-controls {
     display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
   }
@@ -225,7 +209,6 @@ const STYLES = `
   .ctrl-btn.handoff { border-color: rgba(212,175,55,0.2); color: rgba(212,175,55,0.6); }
   .ctrl-btn.handoff:hover { border-color: #ffd700; color: #ffd700; }
 
-  /* ── Commentary ── */
   .commentary-box {
     border: 1px solid rgba(212,175,55,0.1);
     background: rgba(0,0,0,0.3);
@@ -241,7 +224,6 @@ const STYLES = `
   .commentary-line:first-child { color: #e8e0d0; }
   .commentary-line:last-child { border-bottom: none; }
 
-  /* ── Finished banner ── */
   .winner-banner {
     text-align: center; padding: 40px 24px;
     border: 1px solid rgba(212,175,55,0.25);
@@ -257,7 +239,6 @@ const STYLES = `
   }
   .winner-sub { font-size: 16px; color: rgba(232,224,208,0.5); letter-spacing: 0.06em; margin-top: 8px; }
 
-  /* ── Loading ── */
   .scorer-loading {
     display: flex; align-items: center; justify-content: center;
     height: 60vh; flex-direction: column; gap: 16px;
@@ -273,13 +254,14 @@ const STYLES = `
 `;
 
 export default function MatchScorer({ onNav, onLogout, matchData, role = "spectator", onMatchEnd, onHandoff }) {
-  const [match,       setMatch]       = useState(null);
-  const [shotPicker,  setShotPicker]  = useState(null);
+  const [match,      setMatch]      = useState(null);
+  const [liveRow,    setLiveRow]    = useState(null);   // FIX 4: tracks raw DB row for realtime
+  const [shotPicker, setShotPicker] = useState(null);
   const commentaryRef = useRef(null);
 
   const isScorer = role === "scorer";
 
-  // ── Build engine state from matchData ──────────────────────────────────────
+  // ── Build engine state from matchData ─────────────────────────────────────
   useEffect(() => {
     if (!matchData) return;
 
@@ -288,47 +270,103 @@ export default function MatchScorer({ onNav, onLogout, matchData, role = "specta
       name:   matchData.player1_name || "Player 1",
       init:   (matchData.player1_name || "P1").slice(0, 2).toUpperCase(),
       club:   matchData.player1_club  || "",
-      rating: matchData.player1_rating || 1500,
+      rating: matchData.player1_rating || 1000,
     };
     const p2 = {
       id:     matchData.player2_id,
       name:   matchData.player2_name || "Player 2",
       init:   (matchData.player2_name || "P2").slice(0, 2).toUpperCase(),
       club:   matchData.player2_club  || "",
-      rating: matchData.player2_rating || 1500,
+      rating: matchData.player2_rating || 1000,
     };
 
     setMatch(createMatchState(p1, p2));
   }, [matchData]);
 
-  // ── Realtime: spectator receives DB updates ────────────────────────────────
+  // ── FIX 4: Fetch LATEST score from DB on mount for BOTH scorer and spectator
+  // Fixes the 0-0 stale score shown when new scorer scans QR or spectator opens match
   useEffect(() => {
-    if (!matchData?.id || isScorer) return;
+    if (!matchData?.id) return;
+
+    async function fetchLatest() {
+      const { data } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("id", matchData.id)
+        .single();
+
+      if (data) {
+        setLiveRow(data);
+        // Sync engine scores with what's actually in DB
+        setMatch(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            scores: prev.scores.map((s, i) =>
+              i === 0
+                ? { ...s, p1: data.score_a ?? s.p1, p2: data.score_b ?? s.p2 }
+                : s
+            ),
+            status: data.status === "completed" ? "finished" : prev.status,
+            gamesWon: data.games_won ?? prev.gamesWon,
+            currentGame: data.current_game ?? prev.currentGame,
+            server: data.server ?? prev.server,
+          };
+        });
+      }
+    }
+
+    fetchLatest();
+  }, [matchData?.id]);
+
+  // ── FIX 4: Realtime subscription for BOTH scorer and spectator ────────────
+  // Old code only subscribed spectators — scorer didn't get updates if another
+  // device changed the score (e.g. after handoff confusion).
+  // Now BOTH roles subscribe, but only spectators rely on it for display.
+  useEffect(() => {
+    if (!matchData?.id) return;
 
     const channel = supabase
-      .channel("scorer-watch-" + matchData.id)
+      .channel("match-live-" + matchData.id)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchData.id}` },
+        {
+          event:  "UPDATE",
+          schema: "public",
+          table:  "matches",
+          filter: `id=eq.${matchData.id}`,
+        },
         (payload) => {
+          const row = payload.new;
+          setLiveRow(row);
+
+          // Spectators get full score sync from DB
+          // Scorers also sync so handoff transition is seamless
           setMatch(prev => {
             if (!prev) return prev;
-            const row     = payload.new;
-            const updated = { ...prev };
-            if (row.score_a !== undefined) updated.scores[0].p1 = row.score_a;
-            if (row.score_b !== undefined) updated.scores[0].p2 = row.score_b;
+            const updated = {
+              ...prev,
+              scores: prev.scores.map((s, i) =>
+                i === 0
+                  ? { ...s, p1: row.score_a ?? s.p1, p2: row.score_b ?? s.p2 }
+                  : s
+              ),
+              gamesWon:    row.games_won    ?? prev.gamesWon,
+              currentGame: row.current_game ?? prev.currentGame,
+              server:      row.server       ?? prev.server,
+            };
             if (row.status === "completed") {
               updated.status = "finished";
-              updated.winner = row.winner;
+              updated.winner = row.winner ?? prev.winner;
             }
-            return { ...updated };
+            return updated;
           });
         }
       )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [matchData?.id, isScorer]);
+  }, [matchData?.id]);
 
   // Auto-scroll commentary
   useEffect(() => {
@@ -350,7 +388,7 @@ export default function MatchScorer({ onNav, onLogout, matchData, role = "specta
   }
 
   const gIdx  = match.currentGame - 1;
-  const score = match.scores[gIdx];
+  const score = match.scores[gIdx] || match.scores[0];
   const isLive = match.status === "live";
 
   // ── Commit point ──────────────────────────────────────────────────────────
@@ -429,7 +467,6 @@ export default function MatchScorer({ onNav, onLogout, matchData, role = "specta
         <div className="scorer-topbar">
           <div className="scorer-logo">MATCH<span style={{ color: "#00e6a0" }}>X</span></div>
 
-          {/* Spectator badge */}
           {!isScorer && <div className="scorer-role-badge">👁 Spectator View</div>}
 
           {shareUrl && (
@@ -437,7 +474,6 @@ export default function MatchScorer({ onNav, onLogout, matchData, role = "specta
           )}
 
           <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-            {/* ✅ Hand Off button — only scorer sees this */}
             {isScorer && onHandoff && (
               <button className="scorer-handoff-btn" onClick={onHandoff}>
                 📲 Hand Off

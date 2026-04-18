@@ -9,8 +9,10 @@ const NAV_SCORER = [
   { id: "profile",    label: "Profile",    icon: "👤" },
 ];
 
+// ── FIX 2: Added Tournament back to spectator nav ─────────────────────────
 const NAV_SPECTATOR = [
   { id: "dashboard",  label: "Matches",    icon: "📡" },
+  { id: "tournament", label: "Tournament", icon: "🏆" },
   { id: "rankings",   label: "Rankings",   icon: "📊" },
   { id: "players",    label: "Players",    icon: "👥" },
   { id: "profile",    label: "Profile",    icon: "👤" },
@@ -65,7 +67,7 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
   const [logoTaps,   setLogoTaps]   = useState(0);
   const [tapHint,    setTapHint]    = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const tapTimerRef = useRef(null); // single ref so we can clear the previous timeout
+  const tapTimerRef = useRef(null);
 
   const isAdmin = role === "admin" || user?.isAdmin ||
     localStorage.getItem("is_admin") === "true";
@@ -74,7 +76,6 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
     : role === "spectator" ? NAV_SPECTATOR
     : NAV_SCORER;
 
-  // ── Admin secret tap — fixed: clear previous timer before setting new one ──
   function handleLogoTap() {
     if (isAdmin) { onNav("admin"); return; }
 
@@ -87,14 +88,11 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
         return 0;
       }
       if (next >= 3) setTapHint(true);
-
-      // Reset counter after 2s of no taps
       clearTimeout(tapTimerRef.current);
       tapTimerRef.current = setTimeout(() => {
         setLogoTaps(0);
         setTapHint(false);
       }, 2000);
-
       return next;
     });
   }
@@ -125,9 +123,8 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
   const roleClass = isAdmin ? "admin" : role === "spectator" ? "spectator" : "scorer";
 
   // ── Mobile bottom nav ─────────────────────────────────────────────────────
-  // Note: removed the portrait-only check — show bottom nav on ALL mobile widths
   if (isMobile) {
-    // Limit to 5 items on mobile so they fit
+    // Show all nav items, max 5 fit comfortably
     const mobileNav = NAV.slice(0, 5);
 
     return (
@@ -135,6 +132,7 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap');
 
+          /* FIX 5: Remove all position/width side effects on mobile */
           .bottom-nav {
             position: fixed;
             bottom: 0; left: 0; right: 0;
@@ -144,6 +142,7 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
             border-top: 1px solid rgba(0,255,200,0.15);
             display: flex;
             align-items: stretch;
+            /* No width/margin that could shrink the page */
           }
           .bn-item {
             flex: 1;
@@ -316,7 +315,7 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
               />
               <div>
                 <div className="sb-user-name">{user.name || "Player"}</div>
-                <div className="sb-user-rating">ELO {user.rating || 1500}</div>
+                <div className="sb-user-rating">ELO {user.rating || 1000}</div>
               </div>
             </div>
             <button className="sb-logout" onClick={handleLogout} disabled={loggingOut} type="button">

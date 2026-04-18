@@ -1,23 +1,9 @@
 /**
  * ScorerHandoff.jsx
  * src/components/ScorerHandoff.jsx
- *
- * QR code modal that lets the current scorer hand off scoring to another phone.
- *
- * Flow:
- *  1. Current scorer taps "Hand Off Scoring" button in MatchScorer
- *  2. This modal opens, shows a QR code linking to /score/:matchId?token=<handoff_token>
- *  3. New scorer scans QR on their phone (already logged in)
- *  4. New scorer sees ScorerPrompt → confirms → gets scorer role
- *  5. Original phone gets notified via Supabase realtime → drops to spectator
- *
- * The handoff token is stored in the match row (handoff_token column).
- * When new scorer opens the link, they confirm and the token is cleared.
- *
- * Scope options: "match" (just this match) or "tournament" (all remaining matches)
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../services/supabase";
 
 const STYLES = `
@@ -76,7 +62,6 @@ const STYLES = `
     margin-bottom: 24px; line-height: 1.5;
   }
 
-  /* Scope toggle */
   .sh-scope {
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 8px; margin-bottom: 24px;
@@ -86,24 +71,20 @@ const STYLES = `
     padding: 10px 12px; border: 1px solid; cursor: pointer;
     background: transparent; transition: all 0.2s; text-align: left;
   }
-
   .sh-scope-btn.active-match {
     border-color: rgba(0, 255, 200, 0.4);
     background: rgba(0, 255, 200, 0.06);
   }
   .sh-scope-btn.inactive-match {
-    border-color: rgba(255,255,255,0.08);
-    background: transparent;
+    border-color: rgba(255,255,255,0.08); background: transparent;
   }
   .sh-scope-btn.active-tournament {
     border-color: rgba(255, 215, 0, 0.4);
     background: rgba(255, 215, 0, 0.06);
   }
   .sh-scope-btn.inactive-tournament {
-    border-color: rgba(255,255,255,0.08);
-    background: transparent;
+    border-color: rgba(255,255,255,0.08); background: transparent;
   }
-
   .sh-scope-name {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 16px; letter-spacing: 0.06em;
@@ -113,37 +94,26 @@ const STYLES = `
   .sh-scope-btn.inactive-match .sh-scope-name { color: rgba(255,255,255,0.3); }
   .sh-scope-btn.active-tournament .sh-scope-name   { color: #ffd700; }
   .sh-scope-btn.inactive-tournament .sh-scope-name { color: rgba(255,255,255,0.3); }
-
   .sh-scope-desc {
     font-family: 'JetBrains Mono', monospace;
     font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
     color: rgba(255,255,255,0.25);
   }
 
-  /* QR box */
   .sh-qr-box {
-    background: #fff;
-    padding: 16px;
+    background: #fff; padding: 16px;
     display: flex; align-items: center; justify-content: center;
-    margin-bottom: 16px;
-    min-height: 200px;
-    position: relative;
+    margin-bottom: 16px; min-height: 200px; position: relative;
   }
-
-  .sh-qr-box canvas, .sh-qr-box img {
-    display: block; max-width: 100%;
-  }
-
+  .sh-qr-box img { display: block; max-width: 100%; }
   .sh-qr-loading {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px; color: #999; letter-spacing: 0.1em;
   }
 
-  /* URL copy row */
   .sh-url-row {
     display: flex; gap: 8px; margin-bottom: 20px; align-items: stretch;
   }
-
   .sh-url {
     flex: 1; padding: 10px 12px;
     background: rgba(255,255,255,0.04);
@@ -153,7 +123,6 @@ const STYLES = `
     color: rgba(255,255,255,0.5);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-
   .sh-copy-btn {
     padding: 10px 16px;
     background: rgba(212, 175, 55, 0.1);
@@ -166,7 +135,6 @@ const STYLES = `
   .sh-copy-btn:hover { background: rgba(212, 175, 55, 0.2); }
   .sh-copy-btn.copied { color: #00ffc8; border-color: rgba(0,255,200,0.3); }
 
-  /* Waiting indicator */
   .sh-waiting {
     display: flex; align-items: center; gap: 10px;
     padding: 12px 14px;
@@ -174,18 +142,15 @@ const STYLES = `
     background: rgba(0, 255, 200, 0.04);
     margin-bottom: 20px;
   }
-
   .sh-waiting-dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: #00ffc8;
     animation: sh-pulse 1.5s ease-in-out infinite;
   }
-
   @keyframes sh-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50%       { opacity: 0.4; transform: scale(0.7); }
   }
-
   .sh-waiting-text {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
@@ -210,7 +175,6 @@ const STYLES = `
   }
 `;
 
-// Simple QR via Google Charts API (no dependency needed)
 function QRCode({ url, size = 180 }) {
   const encoded = encodeURIComponent(url);
   const src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}&bgcolor=ffffff&color=000000&margin=0`;
@@ -218,18 +182,17 @@ function QRCode({ url, size = 180 }) {
 }
 
 export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAccepted }) {
-  const [scope,      setScope]      = useState("match");       // "match" | "tournament"
-  const [copied,     setCopied]     = useState(false);
-  const [token,      setToken]      = useState(null);
-  const [waiting,    setWaiting]    = useState(false);
+  const [scope,   setScope]   = useState("match");
+  const [copied,  setCopied]  = useState(false);
+  const [token,   setToken]   = useState(null);
+  const [waiting, setWaiting] = useState(false);
 
-  // Generate a handoff token and store it in the match row
   useEffect(() => {
     if (!matchId) return;
     generateToken();
   }, [matchId]);
 
-  // Listen for token being consumed (new scorer accepted)
+  // ── FIX 3: Watch for token being cleared (new scorer accepted) ─────────────
   useEffect(() => {
     if (!matchId || !token) return;
 
@@ -244,8 +207,8 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
           filter: `id=eq.${matchId}`,
         },
         (payload) => {
-          // Token was cleared — new scorer accepted
-          if (payload.new.handoff_token === null || payload.new.handoff_token === "") {
+          // New scorer accepted — token was cleared in DB
+          if (!payload.new.handoff_token) {
             onHandoffAccepted?.();
           }
         }
@@ -256,23 +219,22 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
   }, [matchId, token]);
 
   async function generateToken() {
-    // Simple random token
     const t = Math.random().toString(36).slice(2, 10).toUpperCase();
     setToken(t);
     setWaiting(true);
 
-    // Store token in match row so the new scorer can validate it
-    if (matchId) {
-      await supabase
-        .from("matches")
-        .update({ handoff_token: t, handoff_scope: scope })
-        .eq("id", matchId);
-    }
+    await supabase
+      .from("matches")
+      .update({ handoff_token: t, handoff_scope: scope })
+      .eq("id", matchId);
   }
 
+  // ── FIX 3: URL format must match what App.jsx checks on load ─────────────
+  // Old: /score/:matchId?token=xxx  ← App.jsx never detected this
+  // New: /?scorer=1&matchId=xxx     ← App.jsx useEffect catches this
   function buildHandoffUrl() {
     const base = window.location.origin;
-    return `${base}/score/${matchId}?token=${token}&scope=${scope}`;
+    return `${base}/?scorer=1&matchId=${matchId}&token=${token}&scope=${scope}`;
   }
 
   async function handleCopy() {
@@ -281,11 +243,10 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback: select input text
+      // silently fail
     }
   }
 
-  // When scope changes, regenerate token with new scope
   async function handleScopeChange(newScope) {
     setScope(newScope);
     if (matchId && token) {
@@ -301,7 +262,10 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
   return (
     <>
       <style>{STYLES}</style>
-      <div className="sh-overlay" onClick={(e) => { if (e.target.className === "sh-overlay") onClose(); }}>
+      <div
+        className="sh-overlay"
+        onClick={(e) => { if (e.target.className === "sh-overlay") onClose(); }}
+      >
         <div className="sh-card">
           <div className="sh-corner sh-tl" />
           <div className="sh-corner sh-tr" />
@@ -311,10 +275,9 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
           <div className="sh-label">Scorer Handoff</div>
           <div className="sh-title">Pass Scoring to Another Phone</div>
           <div className="sh-sub">
-            The new scorer scans this QR (must be logged in). They pick their role — if they choose Scorer, you become Spectator automatically.
+            New scorer scans this QR (must be logged in). They confirm scorer role — you automatically become spectator.
           </div>
 
-          {/* Scope */}
           <div className="sh-scope">
             <button
               className={`sh-scope-btn ${scope === "match" ? "active-match" : "inactive-match"}`}
@@ -332,13 +295,11 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
             </button>
           </div>
 
-          {/* QR Code */}
           <div className="sh-qr-box">
             {!token && <span className="sh-qr-loading">Generating...</span>}
             {token  && <QRCode url={handoffUrl} size={180} />}
           </div>
 
-          {/* URL copy */}
           <div className="sh-url-row">
             <div className="sh-url">{handoffUrl || "Generating link..."}</div>
             <button
@@ -350,7 +311,6 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
             </button>
           </div>
 
-          {/* Waiting indicator */}
           {waiting && (
             <div className="sh-waiting">
               <div className="sh-waiting-dot" />
