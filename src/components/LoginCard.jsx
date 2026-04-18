@@ -13,7 +13,7 @@ export default function LoginCard() {
   const [loading, setLoading] = useState(false);
   const [smashing, setSmashing] = useState(false);
 
-  const { setPlayer } = useAuth();
+  const { setPlayer, setUser } = useAuth();  // ← also grab setUser
 
   function triggerSmash() {
     setSmashing(true);
@@ -38,7 +38,11 @@ export default function LoginCard() {
       setName("");
       setCode("");
 
-      // ✅ Update AuthContext so App.jsx re-renders to Dashboard
+      // ── FIX: set BOTH user and player so isAuthenticated becomes true ───
+      // Access-code login has no Supabase session, so we create a synthetic
+      // user object. Without this, isAuthenticated stays false and the app
+      // never navigates away from the landing page.
+      setUser({ id: player.id, email: null, isCodeUser: true });
       setPlayer({
         id:         player.id,
         name:       player.name,
@@ -88,7 +92,6 @@ export default function LoginCard() {
   return (
     <div className={`login-card ${smashing ? "smashing" : ""}`}>
 
-      {/* Tabs */}
       <div className="login-tabs">
         <button
           className={`tab ${mode === "code" ? "active" : ""}`}
@@ -106,7 +109,6 @@ export default function LoginCard() {
         </button>
       </div>
 
-      {/* Access Code Mode */}
       {mode === "code" && (
         <div className="tab-content code-mode">
           <div className="input-group">
@@ -147,7 +149,6 @@ export default function LoginCard() {
         </div>
       )}
 
-      {/* Magic Link Mode */}
       {mode === "email" && (
         <div className="tab-content email-mode">
           <div className="input-group">
@@ -176,7 +177,6 @@ export default function LoginCard() {
         </div>
       )}
 
-      {/* Messages */}
       {error && <div className="message-box error-msg">{error}</div>}
       {success && <div className="message-box success-msg">{success}</div>}
     </div>
