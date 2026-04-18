@@ -152,7 +152,7 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
 
   // ── Mobile bottom nav ─────────────────────────────────────────────────────
   if (isMobile) {
-    const mobileNav = NAV.slice(0, 5);
+    const mobileNav = NAV.slice(0, 4); // 4 nav items + logout = 5 total on mobile
     return (
       <>
         <style>{`
@@ -207,6 +207,17 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
               <span>{n.label}</span>
             </button>
           ))}
+          {/* Logout button always visible on mobile */}
+          <button
+            className="bn-item"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            type="button"
+            style={{ color: "rgba(255,80,80,0.7)" }}
+          >
+            <span className="bn-icon">🚪</span>
+            <span>{loggingOut ? "..." : "Logout"}</span>
+          </button>
         </nav>
       </>
     );

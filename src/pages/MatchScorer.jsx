@@ -301,30 +301,81 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
   }, [matchData?.id]);
 
   // ── Realtime subscription ─────────────────────────────────────────────────
+  // FIX: Spectators need reliable realtime. We use a unique channel name per
+  // session to avoid stale subscriptions, and poll as a fallback every 5s.
   useEffect(() => {
     if (!matchData?.id) return;
+
+    const channelName = "match-live-" + matchData.id + "-" + Date.now();
     const channel = supabase
-      .channel("match-live-" + matchData.id)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchData.id}` },
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchData.id}` },
         (payload) => syncMatchFromDB(payload.new)
       )
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [matchData?.id]);
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Re-fetch latest on successful subscribe to catch any missed updates
+          supabase.from("matches").select("*").eq("id", matchData.id).single()
+            .then(({ data }) => { if (data) syncMatchFromDB(data); });
+        }
+      });
+
+    // ── Polling fallback: every 5s fetch latest score ─────────────────────
+    // Handles cases where realtime websocket is unreliable (mobile networks)
+    const pollInterval = setInterval(async () => {
+      if (!isScorer) { // Only poll for spectators — scorer manages state locally
+        const { data } = await supabase
+          .from("matches").select("*").eq("id", matchData.id).single();
+        if (data) syncMatchFromDB(data);
+      }
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
+  }, [matchData?.id, isScorer]);
 
   function syncMatchFromDB(row) {
     setMatch(prev => {
       if (!prev) return prev;
+
+      // ── FIX: sync score into the CORRECT game slot, not always index 0 ──
+      // row.current_game tells us which game is active (1-indexed)
+      // row.score_a/score_b are the scores for the CURRENT game
+      const currentGameIdx = (row.current_game ?? prev.currentGame) - 1;
+      const newScores = prev.scores.map((s, i) =>
+        i === currentGameIdx
+          ? { ...s, p1: row.score_a ?? s.p1, p2: row.score_b ?? s.p2 }
+          : s
+      );
+
+      // Also parse full scores JSON if available (most accurate)
+      let parsedScores = newScores;
+      if (row.scores) {
+        try {
+          const dbScores = typeof row.scores === "string" ? JSON.parse(row.scores) : row.scores;
+          if (Array.isArray(dbScores) && dbScores.length > 0) {
+            parsedScores = prev.scores.map((s, i) =>
+              dbScores[i] ? { p1: dbScores[i].p1 ?? s.p1, p2: dbScores[i].p2 ?? s.p2 } : s
+            );
+          }
+        } catch (e) { /* use newScores fallback */ }
+      }
+
       const updated = {
         ...prev,
-        scores: prev.scores.map((s, i) =>
-          i === 0 ? { ...s, p1: row.score_a ?? s.p1, p2: row.score_b ?? s.p2 } : s
-        ),
+        scores:      parsedScores,
         gamesWon:    row.games_won    ?? prev.gamesWon,
         currentGame: row.current_game ?? prev.currentGame,
         server:      row.server       ?? prev.server,
       };
-      if (row.status === "completed") { updated.status = "finished"; updated.winner = row.winner ?? prev.winner; }
+      if (row.status === "completed") {
+        updated.status = "finished";
+        updated.winner = row.winner ?? prev.winner;
+      }
       return updated;
     });
   }
