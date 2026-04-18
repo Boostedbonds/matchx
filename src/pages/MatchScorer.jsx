@@ -168,6 +168,18 @@ const STYLES = `
   }
   .gw-dot.won { background: #ffd700; box-shadow: 0 0 6px rgba(255,215,0,0.5); }
 
+  .team-name-header {
+    width: 100%; padding: 8px 14px 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(0,255,200,0.5); border-bottom: 1px solid rgba(0,255,200,0.08);
+    background: rgba(0,255,200,0.03);
+  }
+  .team-name-header.right {
+    color: rgba(255,184,0,0.5); border-bottom-color: rgba(255,184,0,0.08);
+    background: rgba(255,184,0,0.03); text-align: right;
+  }
+
   /* ── Shot picker ── */
   .shot-picker { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
   @media (max-width: 480px) { .shot-picker { grid-template-columns: repeat(2, 1fr); } }
@@ -467,6 +479,7 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             {/* TEAM A */}
             {isDoubles ? (
               <div className="scorer-team left doubles">
+                <div className="team-name-header">▸ {matchData?.team_a_name || "Team A"}</div>
                 {/* Player A1 */}
                 <div
                   className={`doubles-player ${isScorer ? "scorer-only" : ""}`}
@@ -497,6 +510,8 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
                 className={`scorer-team left ${isScorer ? "scorer-only" : ""}`}
                 onClick={() => handleTeamTap("p1")}
               >
+{/* Team A name singles */}
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,letterSpacing:"0.2em",textTransform:"uppercase",color:"rgba(0,255,200,0.5)",marginBottom:6}}>▸ {matchData?.team_a_name || ""}</div>
                 {match.server === "p1" && <div className="scorer-serve-dot" />}
                 <div className="scorer-init">{match.player1.init}</div>
                 <div className="scorer-name">{match.player1.name}</div>
@@ -522,6 +537,7 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             {/* TEAM B */}
             {isDoubles ? (
               <div className="scorer-team right doubles">
+                <div className="team-name-header right">{matchData?.team_b_name || "Team B"} ◂</div>
                 {/* Player B1 */}
                 <div
                   className={`doubles-player ${isScorer ? "scorer-only" : ""}`}
@@ -552,6 +568,8 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
                 className={`scorer-team right ${isScorer ? "scorer-only" : ""}`}
                 onClick={() => handleTeamTap("p2")}
               >
+{/* Team B name singles */}
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,letterSpacing:"0.2em",textTransform:"uppercase",color:"rgba(255,184,0,0.5)",marginBottom:6}}>{matchData?.team_b_name || ""} ◂</div>
                 {match.server === "p2" && <div className="scorer-serve-dot" />}
                 <div className="scorer-init">{match.player2.init}</div>
                 <div className="scorer-name">{match.player2.name}</div>
