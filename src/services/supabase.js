@@ -140,7 +140,7 @@ export async function createOrUpdatePlayer(userId, email) {
         email: email,
         name: playerName,
         skill_level: "beginner",
-        elo: 1500,
+        elo: 1000,
         wins: 0,
         losses: 0,
         avatar_url: getRandomDefaultAvatar(),  // ← random avatar on creation
