@@ -30,6 +30,8 @@ const DARK = {
   "--mx-input-bg":     "rgba(255,255,255,0.03)",
   "--mx-input-border": "rgba(255,255,255,0.1)",
   "--mx-overlay":      "repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(212,175,55,0.03) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(212,175,55,0.03) 40px)",
+  "--sb-nav-color":    "rgba(255,255,255,0.45)",
+  "--sb-nav-hover":    "rgba(255,255,255,0.85)",
 };
 
 const LIGHT = {
@@ -60,6 +62,8 @@ const LIGHT = {
   "--mx-input-bg":     "#FFFFFF",
   "--mx-input-border": "#E8D8C0",
   "--mx-overlay":      "repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(201,106,0,0.025) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(201,106,0,0.025) 40px)",
+  "--sb-nav-color":    "rgba(255,255,255,0.7)",
+  "--sb-nav-hover":    "rgba(255,255,255,0.95)",
 };
 
 export function ThemeProvider({ children }) {

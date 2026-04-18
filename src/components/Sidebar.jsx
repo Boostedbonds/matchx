@@ -220,23 +220,23 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
         .sidebar {
           width: 220px; min-height: 100vh;
           background: var(--mx-sidebar-bg);
-          border-right: 1px solid var(--mx-sidebar-border);
+          border-right: 1px solid var(--mx-border);
           display: flex; flex-direction: column;
           position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
         }
         .sb-logo {
           padding: 26px 22px 20px;
-          border-bottom: 1px solid var(--mx-sidebar-border);
+          border-bottom: 1px solid rgba(255,255,255,0.1);
           cursor: pointer; user-select: none; position: relative;
         }
         .sb-logo h1 {
           font-family: 'Bebas Neue', sans-serif;
-          font-size: 34px; letter-spacing: 4px; color: #fff; line-height: 1;
+          font-size: 34px; letter-spacing: 4px; color: rgba(255,255,255,0.95); line-height: 1;
         }
         .sb-logo h1 span { color: #00ffc8; }
         .sb-logo p {
           font-family: 'Rajdhani', sans-serif; font-size: 9px; letter-spacing: 3px;
-          color: rgba(255,255,255,0.25); text-transform: uppercase; margin-top: 3px;
+          color: rgba(255,255,255,0.5); text-transform: uppercase; margin-top: 3px;
         }
         .sb-tap-hint { font-family: 'Rajdhani', sans-serif; font-size: 9px; letter-spacing: 2px; color: rgba(0,255,200,0.5); text-transform: uppercase; margin-top: 4px; }
         .sb-role {
@@ -254,23 +254,23 @@ export default function Sidebar({ active, user, onNav, onLogout, role = "scorer"
           padding: 11px 14px; cursor: pointer; margin-bottom: 3px;
           font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700;
           letter-spacing: 1.5px; text-transform: uppercase;
-          color: rgba(255,255,255,0.3); transition: all 0.2s;
+          color: var(--sb-nav-color, rgba(255,255,255,0.45)); transition: all 0.2s;
           border: 1px solid transparent; background: none; width: 100%; text-align: left;
         }
-        .sb-nav-item:hover { color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.04); }
-        .sb-nav-item.active { color: #00ffc8; background: rgba(0,255,200,0.06); border-color: rgba(0,255,200,0.12); }
+        .sb-nav-item:hover { color: var(--sb-nav-hover, rgba(255,255,255,0.85)); background: rgba(255,255,255,0.06); }
+        .sb-nav-item.active { color: #00ffc8; background: rgba(0,255,200,0.1); border-color: rgba(0,255,200,0.2); }
         .sb-nav-item.admin-item { color: rgba(255,100,100,0.5); }
         .sb-nav-item.admin-item.active { color: #ff6464; background: rgba(255,100,100,0.05); border-color: rgba(255,100,100,0.15); }
         .sb-nav-item.admin-item:hover { color: rgba(255,100,100,0.8); }
         .sb-nav-icon { font-size: 15px; flex-shrink: 0; }
-        .sb-user { padding: 14px 14px 18px; border-top: 1px solid rgba(255,255,255,0.06); }
+        .sb-user { padding: 14px 14px 18px; border-top: 1px solid rgba(255,255,255,0.12); }
         .sb-user-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-        .sb-user-name { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700; color: #fff; }
+        .sb-user-name { font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.9); }
         .sb-user-rating { font-family: 'Rajdhani', sans-serif; font-size: 10px; color: rgba(0,255,200,0.5); letter-spacing: 1px; }
         .sb-logout {
           width: 100%; padding: 9px;
           background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-          color: rgba(255,255,255,0.25); cursor: pointer;
+          color: rgba(255,255,255,0.5); cursor: pointer;
           font-family: 'Rajdhani', sans-serif; font-size: 11px; font-weight: 700;
           letter-spacing: 2px; text-transform: uppercase;
           transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;

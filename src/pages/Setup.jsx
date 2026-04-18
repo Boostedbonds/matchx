@@ -6,225 +6,198 @@ const STYLES = `
 
   .setup-root {
     min-height: 100vh;
-    background: #030508;
-    color: #e8e0d0;
+    background: var(--mx-bg);
+    color: var(--mx-text);
     font-family: 'Rajdhani', sans-serif;
     position: relative;
     overflow-x: hidden;
   }
-
   .setup-root::before {
     content: '';
     position: fixed; inset: 0;
-    background:
-      radial-gradient(ellipse 70% 50% at 15% 10%, rgba(0,255,200,0.05) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 60% at 85% 90%, rgba(212,175,55,0.04) 0%, transparent 55%),
-      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,255,200,0.02) 40px),
-      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,255,200,0.02) 40px);
+    background: var(--mx-overlay);
     pointer-events: none; z-index: 0;
   }
-
   .setup-inner {
     position: relative; z-index: 1;
     max-width: 860px; margin: 0 auto;
     padding: 40px 32px 80px;
   }
 
-  /* ── Back ── */
   .setup-back {
     display: inline-flex; align-items: center; gap: 8px;
     background: none; border: none; cursor: pointer;
     font-family: 'JetBrains Mono', monospace; font-size: 11px;
     letter-spacing: 0.18em; text-transform: uppercase;
-    color: rgba(255,255,255,0.25); padding: 0; margin-bottom: 40px;
+    color: var(--mx-text-3); padding: 0; margin-bottom: 40px;
     transition: color 0.2s;
   }
-  .setup-back:hover { color: #00ffc8; }
+  .setup-back:hover { color: var(--mx-accent); }
 
-  /* ── Header ── */
   .setup-eyebrow {
     font-family: 'JetBrains Mono', monospace; font-size: 10px;
-    letter-spacing: 0.22em; color: #00ffc8; text-transform: uppercase;
+    letter-spacing: 0.22em; color: var(--mx-accent); text-transform: uppercase;
     margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
   }
   .setup-eyebrow::before {
-    content: ''; display: inline-block; width: 20px; height: 1px; background: #00ffc8;
+    content: ''; display: inline-block; width: 20px; height: 1px; background: var(--mx-accent);
   }
   .setup-title {
     font-family: 'Bebas Neue', sans-serif;
     font-size: clamp(40px, 7vw, 72px);
     letter-spacing: 0.05em; line-height: 0.9; margin: 0 0 32px;
-    background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.6) 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    color: var(--mx-score);
   }
 
-  /* ── Mode toggle ── */
   .mode-toggle {
     display: flex; gap: 0; margin-bottom: 40px;
-    border: 1px solid rgba(0,255,200,0.15);
+    border: 1px solid var(--mx-border);
     width: fit-content;
   }
   .mode-btn {
     padding: 12px 28px;
     font-family: 'Bebas Neue', sans-serif; font-size: 16px; letter-spacing: 0.1em;
     border: none; cursor: pointer; transition: all 0.2s;
-    background: transparent; color: rgba(255,255,255,0.3);
+    background: transparent; color: var(--mx-text-3);
     position: relative;
   }
   .mode-btn.active {
-    background: rgba(0,255,200,0.1); color: #00ffc8;
+    background: var(--mx-surface); color: var(--mx-accent);
   }
   .mode-btn.active::after {
     content: ''; position: absolute; bottom: 0; left: 0; right: 0;
-    height: 2px; background: #00ffc8;
+    height: 2px; background: var(--mx-accent);
   }
-  .mode-btn:not(.active):hover { color: rgba(255,255,255,0.6); }
-  .mode-divider { width: 1px; background: rgba(0,255,200,0.15); }
+  .mode-btn:not(.active):hover { color: var(--mx-text-2); }
+  .mode-divider { width: 1px; background: var(--mx-border); }
 
-  /* ── Game count ── */
   .game-count-row {
     display: flex; align-items: center; gap: 12px; margin-bottom: 40px;
   }
   .game-count-label {
     font-family: 'JetBrains Mono', monospace; font-size: 10px;
-    letter-spacing: 0.18em; color: rgba(255,255,255,0.3); text-transform: uppercase;
+    letter-spacing: 0.18em; color: var(--mx-text-3); text-transform: uppercase;
   }
   .gc-btn {
     width: 32px; height: 32px;
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
-    color: rgba(255,255,255,0.5); cursor: pointer; font-size: 16px;
+    background: var(--mx-bg-card); border: 1px solid var(--mx-border);
+    color: var(--mx-text-2); cursor: pointer; font-size: 16px;
     display: flex; align-items: center; justify-content: center;
     transition: all 0.2s; font-family: 'JetBrains Mono', monospace;
   }
   .gc-btn.active {
-    background: rgba(0,255,200,0.1); border-color: rgba(0,255,200,0.4); color: #00ffc8;
+    background: var(--mx-surface); border-color: var(--mx-accent-2); color: var(--mx-accent);
   }
-  .gc-btn:hover:not(.active) { border-color: rgba(255,255,255,0.2); color: #fff; }
+  .gc-btn:hover:not(.active) { border-color: var(--mx-border-hover); color: var(--mx-text); }
 
-  /* ── Teams grid ── */
   .teams-grid {
     display: grid; grid-template-columns: 1fr 52px 1fr;
     gap: 0; align-items: start; margin-bottom: 40px;
   }
-
   .team-panel {
-    border: 1px solid rgba(255,255,255,0.07);
-    background: rgba(255,255,255,0.02);
-    padding: 28px 24px;
-    position: relative;
-    transition: border-color 0.3s;
+    border: 1px solid var(--mx-border);
+    background: var(--mx-bg-card);
+    padding: 28px 24px; position: relative; transition: border-color 0.3s;
   }
   .team-panel.team-a { border-right: none; }
   .team-panel.team-b { border-left: none; }
-  .team-panel.focused { border-color: rgba(0,255,200,0.25); }
+  .team-panel.focused { border-color: var(--mx-accent-2); }
   .team-panel.team-a.focused { border-right: none; }
   .team-panel.team-b.focused { border-left: none; }
 
   .team-vs {
     display: flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,0.02);
-    border-top: 1px solid rgba(255,255,255,0.07);
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    background: var(--mx-surface);
+    border-top: 1px solid var(--mx-border);
+    border-bottom: 1px solid var(--mx-border);
     align-self: stretch;
   }
   .team-vs-text {
     font-family: 'Bebas Neue', sans-serif; font-size: 22px;
-    letter-spacing: 0.08em; color: rgba(255,255,255,0.1);
+    letter-spacing: 0.08em; color: var(--mx-text-3);
     writing-mode: vertical-rl;
   }
 
   .team-label {
     font-family: 'JetBrains Mono', monospace; font-size: 10px;
-    letter-spacing: 0.2em; color: rgba(0,255,200,0.5);
+    letter-spacing: 0.2em; color: var(--mx-accent);
     text-transform: uppercase; margin-bottom: 16px;
     display: flex; align-items: center; gap: 8px;
   }
   .team-label-dot {
-    width: 6px; height: 6px; border-radius: 50%; background: #00ffc8;
-    box-shadow: 0 0 8px #00ffc8;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--mx-accent);
   }
-  .team-label-b { color: rgba(255,184,0,0.6); }
-  .team-label-b .team-label-dot { background: #ffb800; box-shadow: 0 0 8px #ffb800; }
+  .team-label-b { color: var(--mx-score-2); }
+  .team-label-b .team-label-dot { background: var(--mx-score-2); }
 
-  /* Team name input */
   .team-name-input {
-    width: 100%; background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-bottom: 1px solid rgba(255,255,255,0.15);
-    color: #fff; font-family: 'Bebas Neue', sans-serif;
+    width: 100%; background: var(--mx-surface);
+    border: 1px solid var(--mx-border);
+    color: var(--mx-text); font-family: 'Bebas Neue', sans-serif;
     font-size: 22px; letter-spacing: 0.06em;
     padding: 10px 12px; outline: none;
     transition: all 0.2s; margin-bottom: 16px;
   }
-  .team-name-input::placeholder { color: rgba(255,255,255,0.15); }
+  .team-name-input::placeholder { color: var(--mx-text-3); }
   .team-name-input:focus {
-    border-color: rgba(0,255,200,0.2);
-    background: rgba(0,255,200,0.03);
+    border-color: var(--mx-accent-2);
+    background: var(--mx-bg-card);
   }
 
-  /* Player inputs */
   .player-row { position: relative; margin-bottom: 10px; }
   .player-row-label {
     font-family: 'JetBrains Mono', monospace; font-size: 9px;
-    letter-spacing: 0.15em; color: rgba(255,255,255,0.2);
+    letter-spacing: 0.15em; color: var(--mx-text-3);
     text-transform: uppercase; margin-bottom: 5px;
   }
   .player-input-wrap { position: relative; }
   .player-input {
     width: 100%; background: transparent;
-    border: none; border-bottom: 1px solid rgba(255,255,255,0.1);
-    color: #e8e0d0; font-family: 'Rajdhani', sans-serif;
+    border: none; border-bottom: 1px solid var(--mx-border);
+    color: var(--mx-text); font-family: 'Rajdhani', sans-serif;
     font-size: 15px; font-weight: 600; letter-spacing: 0.05em;
     padding: 8px 0; outline: none; transition: border-color 0.2s;
   }
-  .player-input::placeholder { color: rgba(255,255,255,0.2); }
-  .player-input:focus { border-color: rgba(0,255,200,0.4); }
+  .player-input::placeholder { color: var(--mx-text-3); }
+  .player-input:focus { border-color: var(--mx-accent); }
 
-  /* Autocomplete dropdown */
   .autocomplete-list {
     position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 200;
-    background: #0d1018; border: 1px solid rgba(0,255,200,0.15);
+    background: var(--mx-bg-card); border: 1px solid var(--mx-border);
     max-height: 220px; overflow-y: auto;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
   }
   .autocomplete-item {
     display: flex; align-items: center; gap: 10px;
     padding: 10px 14px; cursor: pointer;
-    transition: background 0.15s; border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.15s; border-bottom: 1px solid var(--mx-border);
   }
   .autocomplete-item:last-child { border-bottom: none; }
-  .autocomplete-item:hover { background: rgba(0,255,200,0.06); }
-
+  .autocomplete-item:hover { background: var(--mx-surface); }
   .ac-avatar {
     width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-    object-fit: cover; border: 1px solid rgba(255,255,255,0.1);
-    background: #1a1f2e;
+    object-fit: cover; border: 1px solid var(--mx-border);
+    background: var(--mx-surface);
   }
   .ac-avatar-fallback {
     width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-    background: linear-gradient(135deg, rgba(0,255,200,0.2), rgba(0,136,255,0.2));
-    border: 1px solid rgba(0,255,200,0.2);
+    background: var(--mx-surface); border: 1px solid var(--mx-border);
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Bebas Neue', sans-serif; font-size: 11px; color: #00ffc8;
+    font-family: 'Bebas Neue', sans-serif; font-size: 11px; color: var(--mx-accent);
   }
   .ac-info { flex: 1; min-width: 0; }
   .ac-name {
     font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700;
-    color: #e8e0d0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .ac-meta {
-    font-family: 'JetBrains Mono', monospace; font-size: 9px;
-    color: rgba(255,255,255,0.3); letter-spacing: 0.1em;
+    color: var(--mx-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .ac-elo {
     font-family: 'JetBrains Mono', monospace; font-size: 10px;
-    color: #00ffc8; letter-spacing: 0.08em;
+    color: var(--mx-accent); letter-spacing: 0.08em;
   }
 
-  /* ── Start button ── */
   .start-btn {
     width: 100%; padding: 20px;
-    background: linear-gradient(135deg, #00ffc8, #00c87a);
+    background: var(--mx-accent);
     color: #020905; border: none; cursor: pointer;
     font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.12em;
     clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
@@ -236,42 +209,31 @@ const STYLES = `
     transition: left 0.5s;
   }
   .start-btn:hover::after { left: 100%; }
-  .start-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 40px rgba(0,255,200,0.35);
-  }
-  .start-btn:disabled {
-    opacity: 0.35; cursor: not-allowed; transform: none;
-    box-shadow: none;
-  }
+  .start-btn:hover { transform: translateY(-2px); opacity: 0.9; }
+  .start-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
   .start-btn:disabled::after { display: none; }
 
-  /* ── Validation hint ── */
   .validation-hint {
     text-align: center; margin-top: 12px;
     font-family: 'JetBrains Mono', monospace; font-size: 10px;
-    letter-spacing: 0.12em; color: rgba(255,100,100,0.6); text-transform: uppercase;
+    letter-spacing: 0.12em; color: var(--mx-score-2); text-transform: uppercase;
   }
-
-  /* ── Error message ── */
   .setup-error {
     text-align: center; margin-top: 12px;
     font-family: 'JetBrains Mono', monospace; font-size: 10px;
     letter-spacing: 0.12em; color: rgba(255,80,80,0.9); text-transform: uppercase;
-    background: rgba(255,0,0,0.08); border: 1px solid rgba(255,0,0,0.2);
-    padding: 10px 16px;
+    background: rgba(255,0,0,0.06); border: 1px solid rgba(255,0,0,0.15); padding: 10px 16px;
   }
 
   @media (max-width: 640px) {
     .teams-grid { grid-template-columns: 1fr; }
     .team-vs { display: none; }
-    .team-panel.team-a { border: 1px solid rgba(255,255,255,0.07); border-bottom: none; }
-    .team-panel.team-b { border: 1px solid rgba(255,255,255,0.07); }
+    .team-panel.team-a { border: 1px solid var(--mx-border); border-bottom: none; }
+    .team-panel.team-b { border: 1px solid var(--mx-border); }
     .setup-inner { padding: 24px 16px 60px; }
   }
 `;
 
-// ── Preset team names ──────────────────────────────────────────────────────
 const TEAM_A_DEFAULTS = ["Team Alpha", "Red Hawks", "Court Kings", "Smash FC"];
 const TEAM_B_DEFAULTS = ["Team Beta", "Blue Falcons", "Net Masters", "Rally FC"];
 
@@ -279,11 +241,9 @@ function AutocompleteInput({ placeholder, value, onChange, players, label }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
-  // Match against both name and username fields
   const filtered = value
     ? players.filter(p =>
-        (p.name || "").toLowerCase().includes(value.toLowerCase()) ||
-        (p.username || "").toLowerCase().includes(value.toLowerCase())
+        (p.name || "").toLowerCase().includes(value.toLowerCase())
       ).slice(0, 6)
     : [];
 
@@ -304,10 +264,7 @@ function AutocompleteInput({ placeholder, value, onChange, players, label }) {
           placeholder={placeholder}
           value={value}
           autoComplete="off"
-          onChange={e => {
-            onChange(e.target.value);
-            setOpen(true);
-          }}
+          onChange={e => { onChange(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
         />
         {open && filtered.length > 0 && (
@@ -316,21 +273,14 @@ function AutocompleteInput({ placeholder, value, onChange, players, label }) {
               <div
                 key={p.id}
                 className="autocomplete-item"
-                onMouseDown={e => {
-                  e.preventDefault();
-                  onChange(p.name || p.username);
-                  setOpen(false);
-                }}
+                onMouseDown={e => { e.preventDefault(); onChange(p.name); setOpen(false); }}
               >
                 {p.avatar_url
                   ? <img src={p.avatar_url} className="ac-avatar" alt="" />
-                  : <div className="ac-avatar-fallback">
-                      {(p.name || p.username || "??").slice(0, 2).toUpperCase()}
-                    </div>
+                  : <div className="ac-avatar-fallback">{(p.name || "??").slice(0, 2).toUpperCase()}</div>
                 }
                 <div className="ac-info">
-                  <div className="ac-name">{p.name || p.username}</div>
-                  <div className="ac-meta">@{p.username || (p.name || "").toLowerCase().replace(/\s/g, "")}</div>
+                  <div className="ac-name">{p.name}</div>
                 </div>
                 <div className="ac-elo">ELO {p.elo || 1000}</div>
               </div>
@@ -346,12 +296,9 @@ export default function Setup({ onStartMatch, onBack }) {
   const [matchType, setMatchType] = useState("singles");
   const [gameCount, setGameCount] = useState(3);
   const [playersDB, setPlayersDB] = useState([]);
-
   const [teamAName, setTeamAName] = useState("Team A");
   const [teamBName, setTeamBName] = useState("Team B");
-
   const [players, setPlayers] = useState({ A1: "", A2: "", B1: "", B2: "" });
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [focusedTeam, setFocusedTeam] = useState(null);
@@ -361,7 +308,7 @@ export default function Setup({ onStartMatch, onBack }) {
   async function fetchPlayers() {
     const { data } = await supabase
       .from("players")
-      .select("*")
+      .select("id, name, elo, avatar_url")
       .order("elo", { ascending: false });
     setPlayersDB(data || []);
   }
@@ -370,59 +317,29 @@ export default function Setup({ onStartMatch, onBack }) {
     setPlayers(p => ({ ...p, [key]: val }));
   }
 
-  // ── FIXED: getOrCreatePlayer ───────────────────────────────────────────────
-  // Previously queried by "name" column which doesn't exist → schema cache crash.
-  // Now: lookup by username first, fallback to name, then auto-create if missing.
   async function getOrCreatePlayer(inputName) {
-    if (!inputName.trim()) return null;
-
+    if (!inputName?.trim()) return null;
     const cleanName = inputName.trim();
-    const username  = cleanName.toLowerCase().replace(/\s+/g, "_");
 
-    // 1️⃣ Look up by username (normalized)
-    const { data: byUsername, error: e1 } = await supabase
-      .from("players")
-      .select("*")
-      .eq("username", username)
-      .limit(1);
-
-    if (e1) throw new Error(`Lookup error for "${cleanName}": ${e1.message}`);
-    if (byUsername && byUsername.length > 0) return byUsername[0];
-
-    // 2️⃣ Fallback: look up by name (catches legacy records)
-    const { data: byName, error: e2 } = await supabase
+    const { data, error } = await supabase
       .from("players")
       .select("*")
       .eq("name", cleanName)
       .limit(1);
 
-    if (e2) throw new Error(`Lookup error for "${cleanName}": ${e2.message}`);
-    if (byName && byName.length > 0) return byName[0];
-
-    // 3️⃣ Not found → auto-create a guest profile
-    const uniqueUsername = username + "_" + Date.now().toString().slice(-4);
+    if (error) throw new Error(`Lookup error for "${cleanName}": ${error.message}`);
+    if (data && data.length > 0) return data[0];
 
     const { data: np, error: insertError } = await supabase
       .from("players")
-      .insert({
-        name:       cleanName,
-        username:   uniqueUsername,
-        elo:        1000,
-        wins:       0,
-        losses:     0,
-        avatar_url: getRandomAvatar(),
-        user_id:    null,         // guest profile — no auth account needed
-      })
+      .insert({ name: cleanName, elo: 1000, wins: 0, losses: 0 })
       .select()
       .single();
 
     if (insertError) throw new Error(`Failed to create player "${cleanName}": ${insertError.message}`);
-    if (!np) throw new Error(`Player "${cleanName}" was not returned after insert. Check Supabase RLS policies.`);
-
     return np;
   }
 
-  // Validation
   const isDoubles = matchType === "doubles";
   const requiredFilled = players.A1.trim() && players.B1.trim() &&
     (!isDoubles || (players.A2.trim() && players.B2.trim()));
@@ -438,9 +355,6 @@ export default function Setup({ onStartMatch, onBack }) {
       const p3 = isDoubles ? await getOrCreatePlayer(players.A2) : null;
       const p4 = isDoubles ? await getOrCreatePlayer(players.B2) : null;
 
-      const teamALabel = teamAName || "Team A";
-      const teamBLabel = teamBName || "Team B";
-
       const { data, error: matchError } = await supabase
         .from("matches")
         .insert({
@@ -448,8 +362,8 @@ export default function Setup({ onStartMatch, onBack }) {
           player2_id:   p2.id,
           player1_name: isDoubles ? `${p1.name} / ${p3?.name}` : p1.name,
           player2_name: isDoubles ? `${p2.name} / ${p4?.name}` : p2.name,
-          team_a_name:  teamALabel,
-          team_b_name:  teamBLabel,
+          team_a_name:  teamAName || "Team A",
+          team_b_name:  teamBName || "Team B",
           status:       "live",
           match_type:   matchType,
           game_count:   gameCount,
@@ -461,13 +375,11 @@ export default function Setup({ onStartMatch, onBack }) {
         .single();
 
       if (matchError) throw new Error(`Match insert failed: ${matchError.message}`);
-      if (!data) throw new Error("Match was not returned after insert. Check Supabase RLS policies on the matches table.");
-
+      if (!data) throw new Error("Match was not returned. Check Supabase RLS policies.");
       onStartMatch(data);
-
     } catch (err) {
       console.error("Match creation error:", err);
-      setError(err.message || "Something went wrong. Check the console for details.");
+      setError(err.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -478,143 +390,64 @@ export default function Setup({ onStartMatch, onBack }) {
       <style>{STYLES}</style>
       <div className="setup-root">
         <div className="setup-inner">
-
           <button className="setup-back" onClick={onBack}>← Back</button>
-
           <div className="setup-eyebrow">New Match</div>
           <h1 className="setup-title">Setup Match</h1>
 
-          {/* ── Match type ── */}
           <div className="mode-toggle">
-            <button
-              className={`mode-btn ${matchType === "singles" ? "active" : ""}`}
-              onClick={() => setMatchType("singles")}
-            >🏸 Singles (1v1)</button>
+            <button className={`mode-btn ${matchType === "singles" ? "active" : ""}`} onClick={() => setMatchType("singles")}>
+              🏸 Singles (1v1)
+            </button>
             <div className="mode-divider" />
-            <button
-              className={`mode-btn ${matchType === "doubles" ? "active" : ""}`}
-              onClick={() => setMatchType("doubles")}
-            >👥 Doubles (2v2)</button>
+            <button className={`mode-btn ${matchType === "doubles" ? "active" : ""}`} onClick={() => setMatchType("doubles")}>
+              👥 Doubles (2v2)
+            </button>
           </div>
 
-          {/* ── Game count ── */}
           <div className="game-count-row">
             <span className="game-count-label">Best of</span>
             {[1, 3, 5].map(n => (
-              <button
-                key={n}
-                className={`gc-btn ${gameCount === n ? "active" : ""}`}
-                onClick={() => setGameCount(n)}
-              >{n}</button>
+              <button key={n} className={`gc-btn ${gameCount === n ? "active" : ""}`} onClick={() => setGameCount(n)}>{n}</button>
             ))}
-            <span className="game-count-label" style={{ color: "rgba(255,255,255,0.15)" }}>games</span>
+            <span className="game-count-label" style={{ opacity: 0.4 }}>games</span>
           </div>
 
-          {/* ── Teams ── */}
           <div className="teams-grid">
-            {/* TEAM A */}
             <div
               className={`team-panel team-a ${focusedTeam === "A" ? "focused" : ""}`}
-              onFocus={() => setFocusedTeam("A")}
-              onBlur={() => setFocusedTeam(null)}
+              onFocus={() => setFocusedTeam("A")} onBlur={() => setFocusedTeam(null)}
             >
-              <div className="team-label">
-                <div className="team-label-dot" />
-                Team A
-              </div>
-              <input
-                className="team-name-input"
-                value={teamAName}
-                onChange={e => setTeamAName(e.target.value)}
-                placeholder={TEAM_A_DEFAULTS[Math.floor(Math.random() * TEAM_A_DEFAULTS.length)]}
-              />
-              <AutocompleteInput
-                placeholder="Player 1 name..."
-                value={players.A1}
-                onChange={v => setPlayer("A1", v)}
-                players={playersDB}
-                label={matchType === "doubles" ? "Player 1" : undefined}
-              />
-              {matchType === "doubles" && (
-                <AutocompleteInput
-                  placeholder="Player 2 name..."
-                  value={players.A2}
-                  onChange={v => setPlayer("A2", v)}
-                  players={playersDB}
-                  label="Player 2"
-                />
-              )}
+              <div className="team-label"><div className="team-label-dot" />Team A</div>
+              <input className="team-name-input" value={teamAName} onChange={e => setTeamAName(e.target.value)} placeholder="Team A" />
+              <AutocompleteInput placeholder="Player 1 name..." value={players.A1} onChange={v => setPlayer("A1", v)} players={playersDB} label={isDoubles ? "Player 1" : undefined} />
+              {isDoubles && <AutocompleteInput placeholder="Player 2 name..." value={players.A2} onChange={v => setPlayer("A2", v)} players={playersDB} label="Player 2" />}
             </div>
 
-            {/* VS divider */}
-            <div className="team-vs">
-              <div className="team-vs-text">VS</div>
-            </div>
+            <div className="team-vs"><div className="team-vs-text">VS</div></div>
 
-            {/* TEAM B */}
             <div
               className={`team-panel team-b ${focusedTeam === "B" ? "focused" : ""}`}
-              onFocus={() => setFocusedTeam("B")}
-              onBlur={() => setFocusedTeam(null)}
+              onFocus={() => setFocusedTeam("B")} onBlur={() => setFocusedTeam(null)}
             >
-              <div className="team-label team-label-b">
-                <div className="team-label-dot" />
-                Team B
-              </div>
-              <input
-                className="team-name-input"
-                value={teamBName}
-                onChange={e => setTeamBName(e.target.value)}
-                placeholder={TEAM_B_DEFAULTS[Math.floor(Math.random() * TEAM_B_DEFAULTS.length)]}
-              />
-              <AutocompleteInput
-                placeholder="Player 1 name..."
-                value={players.B1}
-                onChange={v => setPlayer("B1", v)}
-                players={playersDB}
-                label={matchType === "doubles" ? "Player 1" : undefined}
-              />
-              {matchType === "doubles" && (
-                <AutocompleteInput
-                  placeholder="Player 2 name..."
-                  value={players.B2}
-                  onChange={v => setPlayer("B2", v)}
-                  players={playersDB}
-                  label="Player 2"
-                />
-              )}
+              <div className="team-label team-label-b"><div className="team-label-dot" />Team B</div>
+              <input className="team-name-input" value={teamBName} onChange={e => setTeamBName(e.target.value)} placeholder="Team B" />
+              <AutocompleteInput placeholder="Player 1 name..." value={players.B1} onChange={v => setPlayer("B1", v)} players={playersDB} label={isDoubles ? "Player 1" : undefined} />
+              {isDoubles && <AutocompleteInput placeholder="Player 2 name..." value={players.B2} onChange={v => setPlayer("B2", v)} players={playersDB} label="Player 2" />}
             </div>
           </div>
 
-          {/* ── Start ── */}
-          <button
-            className="start-btn"
-            onClick={createMatch}
-            disabled={!requiredFilled || loading}
-          >
+          <button className="start-btn" onClick={createMatch} disabled={!requiredFilled || loading}>
             {loading ? "Setting Up Match..." : "⚡ Start Match →"}
           </button>
 
           {!requiredFilled && (
             <div className="validation-hint">
-              {matchType === "doubles"
-                ? "Enter all 4 players to continue"
-                : "Enter both players to continue"}
+              {isDoubles ? "Enter all 4 players to continue" : "Enter both players to continue"}
             </div>
           )}
-
-          {error && (
-            <div className="setup-error">⚠ {error}</div>
-          )}
-
+          {error && <div className="setup-error">⚠ {error}</div>}
         </div>
       </div>
     </>
   );
-}
-
-// ── Utility: random default avatar ────────────────────────────────────────
-function getRandomAvatar() {
-  const i = Math.floor(Math.random() * 15) + 1;
-  return `/avatars/avatar_${String(i).padStart(2, "0")}.png`;
 }
