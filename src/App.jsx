@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { supabase } from "./services/supabase"; // ← single static import, no more dynamic imports
 
 import Landing     from "./pages/Landing";
 import Dashboard   from "./pages/Dashboard";
@@ -34,9 +35,6 @@ function AppContent() {
     return () => clearTimeout(t);
   }, []);
 
-  // ── FIX: Check URL for QR scorer handoff token on mount ──────────────────
-  // When a new phone scans the QR code, the URL contains ?scorer=1&matchId=xxx
-  // We detect this and immediately grant scorer role + load the match
   useEffect(() => {
     if (!isAuthenticated || !ready) return;
 
@@ -45,15 +43,13 @@ function AppContent() {
     const handoffMatchId  = params.get("matchId");
 
     if (isScorerHandoff && handoffMatchId) {
-      // Clean the URL
       window.history.replaceState({}, "", window.location.pathname);
-      // Load match and grant scorer role
       loadMatchAndBecomeScorer(handoffMatchId);
     }
   }, [isAuthenticated, ready]);
 
+  // ── FIX: Use static supabase import — no more dynamic import() ───────────
   async function loadMatchAndBecomeScorer(matchId) {
-    const { supabase } = await import("./services/supabase");
     const { data, error } = await supabase
       .from("matches")
       .select("*")
@@ -67,11 +63,19 @@ function AppContent() {
     }
   }
 
+  async function refreshActiveMatch(matchId) {
+    const { data } = await supabase
+      .from("matches")
+      .select("*")
+      .eq("id", matchId)
+      .single();
+    if (data) setActiveMatch(data);
+  }
+
   if (loading || !ready) {
     return <div style={{ background: "#000", height: "100vh" }} />;
   }
 
-  // ── FIX 1: Show landing page if not authenticated ─────────────────────────
   if (!isAuthenticated) {
     return <Landing />;
   }
@@ -84,13 +88,8 @@ function AppContent() {
     isAdmin,
   };
 
-  function handleNav(id) {
-    setPage(id);
-  }
-
-  async function handleLogout() {
-    await logout();
-  }
+  function handleNav(id) { setPage(id); }
+  async function handleLogout() { await logout(); }
 
   function handleStartMatch(matchData) {
     setPendingMatch(matchData);
@@ -119,25 +118,10 @@ function AppContent() {
     setPage("scorer");
   }
 
-  // ── FIX 3: Handoff accepted — new scorer takes over, OLD device drops to spectator
   function handleHandoffAccepted() {
     setShowHandoff(false);
     updateRole("spectator");
-    // Refresh match data so score is current
-    if (activeMatch?.id) {
-      refreshActiveMatch(activeMatch.id);
-    }
-  }
-
-  // ── FIX 4: When new scorer scans QR and takes over, refresh match data ────
-  async function refreshActiveMatch(matchId) {
-    const { supabase } = await import("./services/supabase");
-    const { data } = await supabase
-      .from("matches")
-      .select("*")
-      .eq("id", matchId)
-      .single();
-    if (data) setActiveMatch(data);
+    if (activeMatch?.id) refreshActiveMatch(activeMatch.id);
   }
 
   function handleMatchEnd() {
@@ -152,16 +136,9 @@ function AppContent() {
     switch (page) {
       case "dashboard":
         return <Dashboard {...sharedProps} onWatchMatch={handleWatchMatch} />;
-
       case "newmatch":
       case "setup":
-        return (
-          <Setup
-            onStartMatch={handleStartMatch}
-            onBack={() => setPage("dashboard")}
-          />
-        );
-
+        return <Setup onStartMatch={handleStartMatch} onBack={() => setPage("dashboard")} />;
       case "scorer":
         return (
           <>
@@ -182,44 +159,25 @@ function AppContent() {
             )}
           </>
         );
-
-      case "tournament":
-        return <Tournament {...sharedProps} />;
-
-      case "rankings":
-        return <Rankings {...sharedProps} />;
-
-      case "players":
-        return <Players {...sharedProps} />;
-
+      case "tournament":  return <Tournament {...sharedProps} />;
+      case "rankings":    return <Rankings {...sharedProps} />;
+      case "players":     return <Players {...sharedProps} />;
       case "profile":
-        return (
-          <Profile
-            {...sharedProps}
-            user={{ id: user?.id, email: user?.email }}
-            player={player}
-          />
-        );
-
+        return <Profile {...sharedProps} user={{ id: user?.id, email: user?.email }} player={player} />;
       case "admin":
         if (!isAdmin) { handleNav("dashboard"); return null; }
         return <Admin {...sharedProps} user={user} player={player} />;
-
       default:
         return <Dashboard {...sharedProps} onWatchMatch={handleWatchMatch} />;
     }
   }
 
-  // Scorer page is full-screen — no sidebar
   if (page === "scorer") {
     return (
       <>
         {renderPage()}
         {showScorerPrompt && (
-          <ScorerPrompt
-            onConfirm={handleConfirmScorer}
-            onDecline={handleDeclineScorer}
-          />
+          <ScorerPrompt onConfirm={handleConfirmScorer} onDecline={handleDeclineScorer} />
         )}
       </>
     );
@@ -234,13 +192,9 @@ function AppContent() {
         onLogout={handleLogout}
         role={isAdmin ? "admin" : role}
       />
-
-      {/* FIX 5: marginLeft only on desktop, 0 on mobile (sidebar is bottom nav on mobile) */}
       <div style={{ flex: 1, minHeight: "100vh", width: "100%" }}>
         <style>{`
-          .app-main-wrap {
-            margin-left: 220px;
-          }
+          .app-main-wrap { margin-left: 220px; }
           @media (max-width: 768px) {
             .app-main-wrap {
               margin-left: 0 !important;
@@ -250,16 +204,10 @@ function AppContent() {
             }
           }
         `}</style>
-        <div className="app-main-wrap">
-          {renderPage()}
-        </div>
+        <div className="app-main-wrap">{renderPage()}</div>
       </div>
-
       {showScorerPrompt && (
-        <ScorerPrompt
-          onConfirm={handleConfirmScorer}
-          onDecline={handleDeclineScorer}
-        />
+        <ScorerPrompt onConfirm={handleConfirmScorer} onDecline={handleDeclineScorer} />
       )}
     </div>
   );
