@@ -279,8 +279,12 @@ function AutocompleteInput({ placeholder, value, onChange, players, label }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
+  // Match against both name and username fields
   const filtered = value
-    ? players.filter(p => p.name.toLowerCase().includes(value.toLowerCase())).slice(0, 6)
+    ? players.filter(p =>
+        (p.name || "").toLowerCase().includes(value.toLowerCase()) ||
+        (p.username || "").toLowerCase().includes(value.toLowerCase())
+      ).slice(0, 6)
     : [];
 
   useEffect(() => {
@@ -314,19 +318,21 @@ function AutocompleteInput({ placeholder, value, onChange, players, label }) {
                 className="autocomplete-item"
                 onMouseDown={e => {
                   e.preventDefault();
-                  onChange(p.name);
+                  onChange(p.name || p.username);
                   setOpen(false);
                 }}
               >
                 {p.avatar_url
                   ? <img src={p.avatar_url} className="ac-avatar" alt="" />
-                  : <div className="ac-avatar-fallback">{p.name.slice(0,2).toUpperCase()}</div>
+                  : <div className="ac-avatar-fallback">
+                      {(p.name || p.username || "??").slice(0, 2).toUpperCase()}
+                    </div>
                 }
                 <div className="ac-info">
-                  <div className="ac-name">{p.name}</div>
-                  <div className="ac-meta">@{p.username || p.name.toLowerCase().replace(/\s/g, "")}</div>
+                  <div className="ac-name">{p.name || p.username}</div>
+                  <div className="ac-meta">@{p.username || (p.name || "").toLowerCase().replace(/\s/g, "")}</div>
                 </div>
-                <div className="ac-elo">ELO {p.elo || 1500}</div>
+                <div className="ac-elo">ELO {p.elo || 1000}</div>
               </div>
             ))}
           </div>
@@ -353,7 +359,10 @@ export default function Setup({ onStartMatch, onBack }) {
   useEffect(() => { fetchPlayers(); }, []);
 
   async function fetchPlayers() {
-    const { data } = await supabase.from("players").select("*").order("elo", { ascending: false });
+    const { data } = await supabase
+      .from("players")
+      .select("*")
+      .order("elo", { ascending: false });
     setPlayersDB(data || []);
   }
 
@@ -361,30 +370,54 @@ export default function Setup({ onStartMatch, onBack }) {
     setPlayers(p => ({ ...p, [key]: val }));
   }
 
-  async function getOrCreatePlayer(name) {
-    if (!name.trim()) return null;
+  // ── FIXED: getOrCreatePlayer ───────────────────────────────────────────────
+  // Previously queried by "name" column which doesn't exist → schema cache crash.
+  // Now: lookup by username first, fallback to name, then auto-create if missing.
+  async function getOrCreatePlayer(inputName) {
+    if (!inputName.trim()) return null;
 
-    const { data, error } = await supabase
+    const cleanName = inputName.trim();
+    const username  = cleanName.toLowerCase().replace(/\s+/g, "_");
+
+    // 1️⃣ Look up by username (normalized)
+    const { data: byUsername, error: e1 } = await supabase
       .from("players")
       .select("*")
-      .eq("name", name.trim())
+      .eq("username", username)
       .limit(1);
 
-    if (error) throw new Error(`Failed to look up player "${name}": ${error.message}`);
-    if (data && data.length > 0) return data[0];
+    if (e1) throw new Error(`Lookup error for "${cleanName}": ${e1.message}`);
+    if (byUsername && byUsername.length > 0) return byUsername[0];
 
-    const username = name.toLowerCase().replace(/\s/g, "") + "_" + Date.now().toString().slice(-4);
+    // 2️⃣ Fallback: look up by name (catches legacy records)
+    const { data: byName, error: e2 } = await supabase
+      .from("players")
+      .select("*")
+      .eq("name", cleanName)
+      .limit(1);
+
+    if (e2) throw new Error(`Lookup error for "${cleanName}": ${e2.message}`);
+    if (byName && byName.length > 0) return byName[0];
+
+    // 3️⃣ Not found → auto-create a guest profile
+    const uniqueUsername = username + "_" + Date.now().toString().slice(-4);
+
     const { data: np, error: insertError } = await supabase
       .from("players")
       .insert({
-        name: name.trim(), username, elo: 1500, wins: 0, losses: 0,
+        name:       cleanName,
+        username:   uniqueUsername,
+        elo:        1000,
+        wins:       0,
+        losses:     0,
         avatar_url: getRandomAvatar(),
+        user_id:    null,         // guest profile — no auth account needed
       })
       .select()
       .single();
 
-    if (insertError) throw new Error(`Failed to create player "${name}": ${insertError.message}`);
-    if (!np) throw new Error(`Player "${name}" was not returned after insert. Check Supabase RLS policies.`);
+    if (insertError) throw new Error(`Failed to create player "${cleanName}": ${insertError.message}`);
+    if (!np) throw new Error(`Player "${cleanName}" was not returned after insert. Check Supabase RLS policies.`);
 
     return np;
   }
@@ -411,17 +444,17 @@ export default function Setup({ onStartMatch, onBack }) {
       const { data, error: matchError } = await supabase
         .from("matches")
         .insert({
-          player1_id: p1.id,
-          player2_id: p2.id,
+          player1_id:   p1.id,
+          player2_id:   p2.id,
           player1_name: isDoubles ? `${p1.name} / ${p3?.name}` : p1.name,
           player2_name: isDoubles ? `${p2.name} / ${p4?.name}` : p2.name,
-          team_a_name: teamALabel,
-          team_b_name: teamBLabel,
-          status: "live",
-          match_type: matchType,
-          game_count: gameCount,
-          score_a: 0,
-          score_b: 0,
+          team_a_name:  teamALabel,
+          team_b_name:  teamBLabel,
+          status:       "live",
+          match_type:   matchType,
+          game_count:   gameCount,
+          score_a:      0,
+          score_b:      0,
           ...(isDoubles && { player3_id: p3?.id, player4_id: p4?.id }),
         })
         .select()
