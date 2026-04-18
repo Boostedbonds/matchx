@@ -1,8 +1,5 @@
 // matchEngine.js
 // Pure state machine for a badminton match.
-// No UI dependencies — import this into MatchScorer.jsx or any other component.
-
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 export const SHOT_TYPES = [
   { id: "smash",   label: "Smash",    icon: "💥", description: "Overhead power shot" },
@@ -17,13 +14,10 @@ export const SHOT_TYPES = [
 
 export const SHOT_IDS = SHOT_TYPES.map(s => s.id);
 
-// Points needed to win a game (standard = 21, must win by 2, cap at 30)
 const GAME_POINT_TARGET = 21;
-const DEUCE_EXTEND      = 2;   // must lead by 2 after deuce
-const GAME_CAP          = 30;  // sudden death at 29-all → 30 wins
-const GAMES_TO_WIN      = 2;   // best of 3
-
-// ─── Initial State Factory ────────────────────────────────────────────────────
+const DEUCE_EXTEND      = 2;
+const GAME_CAP          = 30;
+const GAMES_TO_WIN      = 2;
 
 export function createMatchState(player1, player2) {
   const openingLines = [
@@ -31,85 +25,93 @@ export function createMatchState(player1, player2) {
     `⚡ We're live! ${player1.name} takes the first serve against ${player2.name}. Let's go!`,
     `🎯 Game on! ${player1.name} vs ${player2.name}. Best of 3 games. ${player1.name} serving first.`,
   ];
-  const opening = openingLines[Math.floor(Math.random() * openingLines.length)];
 
   return {
-    player1,           // { name, init, club, rating }
+    player1,
     player2,
-    currentGame: 1,    // 1, 2, or 3
+    currentGame: 1,
     scores: [
-      { p1: 0, p2: 0 },  // game 1
-      { p1: 0, p2: 0 },  // game 2
-      { p1: 0, p2: 0 },  // game 3
+      { p1: 0, p2: 0 },
+      { p1: 0, p2: 0 },
+      { p1: 0, p2: 0 },
     ],
-    gamesWon: { p1: 0, p2: 0 },
-    server: "p1",       // who is currently serving
-    events: [],         // full event log — source of truth for stats
-    commentary: [opening], // ← match opens with an announcement immediately
-    status: "live",     // "live" | "finished"
-    winner: null,       // "p1" | "p2" | null
-    startTime: Date.now(),
-    undoStack: [],      // snapshots for undo
+    gamesWon:    { p1: 0, p2: 0 },
+    server:      "p1",
+    events:      [],
+    commentary:  [openingLines[Math.floor(Math.random() * openingLines.length)]],
+    status:      "live",
+    winner:      null,
+    startTime:   Date.now(),
+    undoStack:   [],
   };
 }
 
-// ─── Core Reducer ─────────────────────────────────────────────────────────────
-
 /**
- * addPoint(state, { scorer: "p1"|"p2", shotType: SHOT_IDS[n] })
- * Returns a NEW state object (immutable update).
+ * addPoint(state, { scorer, shotType })
+ *
+ * scorer = the player/team that was TAPPED in the UI.
+ *
+ * ── FIX: Error shot logic ─────────────────────────────────────────────────
+ * When shotType === "error", the tapped player made the MISTAKE.
+ * The POINT goes to the other team, not the tapped team.
+ * We flip scorer/loser so the engine always works with "who WINS the point".
  */
 export function addPoint(state, { scorer, shotType }) {
   if (state.status === "finished") return state;
 
-  // Save snapshot for undo BEFORE mutating
   const snapshot = deepClone(state);
 
-  const loser      = scorer === "p1" ? "p2" : "p1";
-  const gameIdx    = state.currentGame - 1;
-  const newScores  = deepClone(state.scores);
-  newScores[gameIdx][scorer] += 1;
+  // ── The tapped player is always who you selected in the UI.
+  // For errors: tapped player = the one who made the mistake = the LOSER.
+  // For all other shots: tapped player = the one who hit the winner = the SCORER.
+  const isError   = shotType === "error";
+  const pointWinner = isError ? (scorer === "p1" ? "p2" : "p1") : scorer;
+  const pointLoser  = isError ? scorer : (scorer === "p1" ? "p2" : "p1");
+
+  // errorBy tracks who actually made the mistake (for commentary)
+  const errorBy = isError ? scorer : null;
+
+  const gameIdx   = state.currentGame - 1;
+  const newScores = deepClone(state.scores);
+  newScores[gameIdx][pointWinner] += 1;  // point always goes to the WINNER
 
   const p1Score = newScores[gameIdx].p1;
   const p2Score = newScores[gameIdx].p2;
 
-  // Build the event
   const event = {
-    id:         state.events.length + 1,
-    game:       state.currentGame,
-    rally:      state.events.filter(e => e.game === state.currentGame).length + 1,
-    scorer,
-    loser,
+    id:          state.events.length + 1,
+    game:        state.currentGame,
+    rally:       state.events.filter(e => e.game === state.currentGame).length + 1,
+    scorer:      pointWinner,   // who won the point
+    loser:       pointLoser,    // who lost the point
+    errorBy,                    // who made the error (null if not an error)
     shotType,
-    scoreBefore:{ p1: state.scores[gameIdx].p1, p2: state.scores[gameIdx].p2 },
-    scoreAfter: { p1: p1Score, p2: p2Score },
-    server:     state.server,
-    timestamp:  Date.now(),
+    scoreBefore: { p1: state.scores[gameIdx].p1, p2: state.scores[gameIdx].p2 },
+    scoreAfter:  { p1: p1Score, p2: p2Score },
+    server:      state.server,
+    timestamp:   Date.now(),
   };
 
-  // Generate commentary line
   const commentaryLine = generateCommentary(event, state.player1, state.player2);
 
-  // Check if this game is won
   const gameWon = isGameWon(p1Score, p2Score);
-  let newGamesWon  = { ...state.gamesWon };
+  let newGamesWon    = { ...state.gamesWon };
   let newCurrentGame = state.currentGame;
-  let newStatus    = "live";
-  let newWinner    = null;
-  let newServer    = scorer; // point scorer always serves next
+  let newStatus      = "live";
+  let newWinner      = null;
+  let newServer      = pointWinner; // point winner serves next
 
   if (gameWon) {
-    newGamesWon[scorer] += 1;
+    newGamesWon[pointWinner] += 1;
     event.gameWon = true;
 
-    if (newGamesWon[scorer] >= GAMES_TO_WIN) {
+    if (newGamesWon[pointWinner] >= GAMES_TO_WIN) {
       newStatus = "finished";
-      newWinner = scorer;
+      newWinner = pointWinner;
       event.matchWon = true;
     } else {
-      // Start next game — loser of last game serves first
       newCurrentGame += 1;
-      newServer = loser;
+      newServer = pointLoser; // loser of game serves first in next game
     }
   }
 
@@ -123,72 +125,51 @@ export function addPoint(state, { scorer, shotType }) {
     winner:      newWinner,
     events:      [...state.events, event],
     commentary:  [commentaryLine, ...state.commentary].slice(0, 50),
-    undoStack:   [...state.undoStack, snapshot].slice(-20), // keep last 20
+    undoStack:   [...state.undoStack, snapshot].slice(-20),
   };
 }
 
-/**
- * undoPoint(state) — rolls back one point.
- */
 export function undoPoint(state) {
   if (state.undoStack.length === 0) return state;
   const prev = state.undoStack[state.undoStack.length - 1];
-  // Restore snapshot but keep the undo stack trimmed
   return {
     ...prev,
-    undoStack: prev.undoStack,
+    undoStack:  prev.undoStack,
     commentary: ["↩️ Last point undone.", ...prev.commentary].slice(0, 50),
   };
 }
-
-// ─── Game-Won Logic ───────────────────────────────────────────────────────────
 
 function isGameWon(p1, p2) {
   const max = Math.max(p1, p2);
   const min = Math.min(p1, p2);
   if (max < GAME_POINT_TARGET) return false;
-  if (max >= GAME_CAP) return true;              // 30-29 sudden death
+  if (max >= GAME_CAP) return true;
   return max >= GAME_POINT_TARGET && (max - min) >= DEUCE_EXTEND;
 }
 
-// ─── Stats Aggregator ─────────────────────────────────────────────────────────
-
-/**
- * getPlayerStats(events, playerId)
- * Derives rich stats from the event log for a given player ("p1" or "p2").
- */
 export function getPlayerStats(events, playerId) {
-  const myPoints   = events.filter(e => e.scorer === playerId);
-  const theirFaults= events.filter(e => e.loser === playerId && e.shotType === "error");
-  const total      = myPoints.length;
+  const myPoints    = events.filter(e => e.scorer === playerId);
+  const myErrors    = events.filter(e => e.errorBy === playerId);
+  const total       = myPoints.length;
 
   if (total === 0) return null;
 
-  // Shot distribution
   const shotCounts = {};
   SHOT_IDS.forEach(s => { shotCounts[s] = 0; });
   myPoints.forEach(e => { shotCounts[e.shotType] = (shotCounts[e.shotType] || 0) + 1; });
 
-  // Serving vs receiving points
   const servingPoints   = myPoints.filter(e => e.server === playerId).length;
   const receivingPoints = myPoints.filter(e => e.server !== playerId).length;
+  const clutchPoints    = myPoints.filter(e => Math.max(e.scoreAfter.p1, e.scoreAfter.p2) >= 18).length;
 
-  // Clutch points (scored at 18+ each)
-  const clutchPoints = myPoints.filter(e => {
-    const s = e.scoreAfter;
-    return Math.max(s.p1, s.p2) >= 18;
-  }).length;
-
-  // Consecutive max streak in this match
   let maxStreak = 0, cur = 0;
   events.forEach(e => {
     if (e.scorer === playerId) { cur++; maxStreak = Math.max(maxStreak, cur); }
     else cur = 0;
   });
 
-  // Per-game breakdown
   const games = [1, 2, 3].map(g => ({
-    game: g,
+    game:   g,
     points: myPoints.filter(e => e.game === g).length,
   }));
 
@@ -202,24 +183,24 @@ export function getPlayerStats(events, playerId) {
     maxStreak,
     games,
     forcedErrors:   myPoints.filter(e => e.shotType !== "error").length,
-    opponentErrors: theirFaults.length,
+    unforcedErrors: myErrors.length,
   };
 }
 
-// ─── Commentary Engine ────────────────────────────────────────────────────────
+// ─── Commentary ───────────────────────────────────────────────────────────────
 
 const TEMPLATES = {
   smash: [
     "{W} unleashes a thunderous smash! {score}",
-    "SMASH! {W} goes full power — no answer from {L}.",
+    "SMASH! {W} goes full power — no answer from {L}. {score}",
     "{W} jumps and hammers it down. Unstoppable! {score}",
-    "What a smash from {W}! {L} had no chance.",
+    "What a smash from {W}! {L} had no chance. {score}",
   ],
   drop: [
     "{W} plays a deceptive drop. {L} caught off guard. {score}",
     "Soft touch from {W} — the drop lands perfectly. {score}",
     "Beautiful drop shot from {W}, just over the tape. {score}",
-    "{L} couldn't reach the drop in time. Point {W}. {score}",
+    "{L} couldn't reach the drop in time. Point to {W}. {score}",
   ],
   net: [
     "Tight net kill from {W}! Clinical finish. {score}",
@@ -247,11 +228,15 @@ const TEMPLATES = {
     "{W} finds the line with a flat push. {score}",
     "Mid-court push from {W} — too good for {L}. {score}",
   ],
+  // ── FIX: Error templates now correctly say LOSER made the error ──────────
+  // {E} = the player who made the error (the one who was tapped)
+  // {W} = the team that benefits from the error
   error: [
-    "{L} sends it wide — unforced error. {W} takes the point. {score}",
-    "Fault from {L}! {W} capitalizes. {score}",
-    "{L} can't control the shuttle — out! {score}",
-    "Error from {L} gifts the point to {W}. {score}",
+    "{E} sends it wide — unforced error. {W} takes the point. {score}",
+    "Fault from {E}! {W} capitalizes. {score}",
+    "{E} can't control the shuttle — out! {W} gets the point. {score}",
+    "Error from {E} gifts the point to {W}. {score}",
+    "{E} nets it — {W} benefits from the mistake. {score}",
   ],
 };
 
@@ -259,12 +244,6 @@ const GAME_POINT_LINES = [
   "GAME POINT for {W}!",
   "{W} is one point away from taking the game!",
   "Can {W} close it out? GAME POINT.",
-];
-
-const MATCH_POINT_LINES = [
-  "MATCH POINT! {W} is one point from victory!",
-  "{W} on the verge of winning the match!",
-  "One point away — MATCH POINT for {W}!",
 ];
 
 const GAME_WON_LINES = [
@@ -280,41 +259,38 @@ const MATCH_WON_LINES = [
 ];
 
 function generateCommentary(event, p1, p2) {
-  const winner = event.scorer === "p1" ? p1.name : p2.name;
-  const loser  = event.loser  === "p1" ? p1.name : p2.name;
-  const score  = `${event.scoreAfter.p1}–${event.scoreAfter.p2}`;
+  const winner    = event.scorer  === "p1" ? p1.name : p2.name;
+  const loser     = event.loser   === "p1" ? p1.name : p2.name;
+  // errorBy = the player who actually made the mistake
+  const errorMaker = event.errorBy === "p1" ? p1.name : (event.errorBy === "p2" ? p2.name : loser);
+  const score     = `${event.scoreAfter.p1}–${event.scoreAfter.p2}`;
 
   const fill = (s) =>
-    s.replace("{W}", winner).replace("{L}", loser).replace("{score}", score);
+    s.replace(/{W}/g, winner)
+     .replace(/{L}/g, loser)
+     .replace(/{E}/g, errorMaker)  // {E} = error maker
+     .replace(/{score}/g, score);
 
-  // Match / game won
-  if (event.matchWon) {
-    return fill(pick(MATCH_WON_LINES));
-  }
-  if (event.gameWon) {
-    return fill(pick(GAME_WON_LINES));
-  }
+  if (event.matchWon) return fill(pick(MATCH_WON_LINES));
+  if (event.gameWon)  return fill(pick(GAME_WON_LINES));
 
-  // Match / game point
   const s = event.scoreAfter;
   const scorerScore = event.scorer === "p1" ? s.p1 : s.p2;
   const loserScore  = event.scorer === "p1" ? s.p2 : s.p1;
 
-  // Determine if this is a game/match point situation
-  // (scorer is at >= 20 and leading, or at 29)
   const isGamePoint =
     scorerScore >= GAME_POINT_TARGET &&
     scorerScore > loserScore &&
     !isGameWon(s.p1, s.p2);
 
+  const pool = TEMPLATES[event.shotType] || TEMPLATES.error;
+  const base = fill(pick(pool));
+
   if (isGamePoint) {
-    const base = fill(pick(TEMPLATES[event.shotType] || TEMPLATES.error));
-    const gp   = fill(pick(GAME_POINT_LINES));
-    return `${base} ${gp}`;
+    return `${base} ${fill(pick(GAME_POINT_LINES))}`;
   }
 
-  const pool = TEMPLATES[event.shotType] || TEMPLATES.error;
-  return fill(pick(pool));
+  return base;
 }
 
 function pick(arr) {
