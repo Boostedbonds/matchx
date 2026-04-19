@@ -2,6 +2,15 @@
  * matchService.js
  * Save to: src/services/matchService.js
  * NO TypeScript — works with .jsx projects
+ *
+ * FIXES IN THIS VERSION:
+ *
+ * FIX 1 — updateMatch now returns { success, error } instead of true/false
+ *   Before: errors were logged but swallowed — caller had no way to know write failed
+ *   After:  caller receives the Supabase error object for proper handling/logging
+ *
+ * FIX 2 — All mutating functions (finishMatch, saveEvent, updatePlayerStats)
+ *   now return { success, error } consistently so callers can react to failures
  */
 
 import { supabase } from "./supabase";
@@ -120,6 +129,9 @@ export async function createMatch(matchData) {
 }
 
 // ─── Update match (scores, game state, etc.) ──────────────────────────────────
+// FIX 1: Returns { success, error } so the caller (commitPoint) knows if the
+// DB write actually landed. Previously returned true/false and swallowed the
+// Supabase error — RLS violations were invisible, score stayed 0 in DB forever.
 export async function updateMatch(matchId, updates) {
   try {
     const { error } = await supabase
@@ -128,13 +140,18 @@ export async function updateMatch(matchId, updates) {
       .eq("id", matchId);
 
     if (error) {
-      console.error("updateMatch error:", error.message);
-      return false;
+      console.error(
+        "updateMatch error:", error.message,
+        "| details:", error.details,
+        "| hint:", error.hint,
+        "| code:", error.code
+      );
+      return { success: false, error };
     }
-    return true;
+    return { success: true, error: null };
   } catch (err) {
     console.error("updateMatch unexpected:", err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -143,17 +160,24 @@ export async function finishMatch(matchId, winner) {
   try {
     const { error } = await supabase
       .from("matches")
-      .update({ status: "completed", winner, finished_at: new Date().toISOString() })
+      .update({
+        status: "completed",
+        winner,
+        finished_at: new Date().toISOString(),
+      })
       .eq("id", matchId);
 
     if (error) {
-      console.error("finishMatch error:", error.message);
-      return false;
+      console.error(
+        "finishMatch error:", error.message,
+        "| code:", error.code
+      );
+      return { success: false, error };
     }
-    return true;
+    return { success: true, error: null };
   } catch (err) {
     console.error("finishMatch unexpected:", err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -165,13 +189,16 @@ export async function saveEvent(matchId, event) {
       .insert([{ match_id: matchId, ...event }]);
 
     if (error) {
-      console.error("saveEvent error:", error.message);
-      return false;
+      console.error(
+        "saveEvent error:", error.message,
+        "| code:", error.code
+      );
+      return { success: false, error };
     }
-    return true;
+    return { success: true, error: null };
   } catch (err) {
     console.error("saveEvent unexpected:", err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -186,7 +213,7 @@ export async function updatePlayerStats(playerId, { won, shotType }) {
 
     if (fetchError) {
       console.error("updatePlayerStats fetch error:", fetchError.message);
-      return false;
+      return { success: false, error: fetchError };
     }
 
     const { error: updateError } = await supabase
@@ -200,12 +227,12 @@ export async function updatePlayerStats(playerId, { won, shotType }) {
 
     if (updateError) {
       console.error("updatePlayerStats update error:", updateError.message);
-      return false;
+      return { success: false, error: updateError };
     }
-    return true;
+    return { success: true, error: null };
   } catch (err) {
     console.error("updatePlayerStats unexpected:", err);
-    return false;
+    return { success: false, error: err };
   }
 }
 
@@ -219,12 +246,12 @@ export async function updateMatchStatus(matchId, status) {
 
     if (error) {
       console.error("updateMatchStatus error:", error.message);
-      return false;
+      return { success: false, error };
     }
-    return true;
+    return { success: true, error: null };
   } catch (err) {
     console.error("updateMatchStatus unexpected:", err);
-    return false;
+    return { success: false, error: err };
   }
 }
 

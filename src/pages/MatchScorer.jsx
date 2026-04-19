@@ -556,7 +556,10 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
 
     try {
       if (next.status === "finished") {
-        await finishMatch(matchData.id, next.winner);
+        const finishResult = await finishMatch(matchData.id, next.winner);
+        if (!finishResult.success) {
+          console.error("finishMatch failed — RLS may be blocking writes:", finishResult.error);
+        }
 
         const teamAWon = next.winner === "p1";
         const allPlayers = [
@@ -572,7 +575,8 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
         }
         setTimeout(() => onMatchEnd?.(), 3000);
       } else {
-        await updateMatch(matchData.id, {
+        // FIX: handle { success, error } return — previously swallowed RLS errors
+        const updateResult = await updateMatch(matchData.id, {
           score_a:      next.scores[gI].p1,
           score_b:      next.scores[gI].p2,
           scores:       next.scores,
@@ -581,7 +585,22 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
           server:       next.server,
           status:       next.status,
         });
-        await saveEvent(matchData.id, { ...newEvent, scoring_player_id: scoringPlayerId || null });
+        if (!updateResult.success) {
+          console.error(
+            "Score write FAILED — this is why spectators see 0-0.",
+            "Most likely cause: missing RLS UPDATE policy on matches table.",
+            "Run rls_write_policies_fix.sql in Supabase SQL Editor.",
+            updateResult.error
+          );
+        }
+
+        const eventResult = await saveEvent(matchData.id, {
+          ...newEvent,
+          scoring_player_id: scoringPlayerId || null,
+        });
+        if (!eventResult.success) {
+          console.error("saveEvent failed:", eventResult.error);
+        }
       }
     } catch (err) {
       console.error("commitPoint error:", err);
