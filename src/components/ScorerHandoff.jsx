@@ -1,6 +1,12 @@
 /**
  * ScorerHandoff.jsx
  * src/components/ScorerHandoff.jsx
+ *
+ * FIXES:
+ * 1. Watches handoff_token being cleared in DB (triggered by new scorer in App.jsx)
+ *    → calls onHandoffAccepted so old phone demotes cleanly
+ * (active_scorer_id is written by App.jsx → loadMatchAndBecomeScorer, which
+ *  triggers MatchScorer.jsx's realtime watcher to demote the old scorer device)
  */
 
 import { useState, useEffect } from "react";
@@ -192,7 +198,13 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
     generateToken();
   }, [matchId]);
 
-  // ── FIX 3: Watch for token being cleared (new scorer accepted) ─────────────
+  // ── FIX 2b: Watch for handoff_token being cleared OR active_scorer_id changing
+  // When the new scorer's App.jsx runs loadMatchAndBecomeScorer, it writes:
+  //   active_scorer_id = newUserId
+  //   handoff_token    = null
+  // This listener fires on the OLD phone and calls onHandoffAccepted to
+  // cleanly close the handoff panel. The actual scorer demotion is handled
+  // separately by MatchScorer.jsx's active_scorer_id watcher.
   useEffect(() => {
     if (!matchId || !token) return;
 
@@ -207,8 +219,9 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
           filter: `id=eq.${matchId}`,
         },
         (payload) => {
-          // New scorer accepted — token was cleared in DB
-          if (!payload.new.handoff_token) {
+          const row = payload.new;
+          // Token cleared means new scorer accepted handoff
+          if (!row.handoff_token) {
             onHandoffAccepted?.();
           }
         }
@@ -229,9 +242,8 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
       .eq("id", matchId);
   }
 
-  // ── FIX 3: URL format must match what App.jsx checks on load ─────────────
-  // Old: /score/:matchId?token=xxx  ← App.jsx never detected this
-  // New: /?scorer=1&matchId=xxx     ← App.jsx useEffect catches this
+  // URL format matches what App.jsx checks on load:
+  // App.jsx useEffect: params.get("scorer") === "1" && params.get("matchId")
   function buildHandoffUrl() {
     const base = window.location.origin;
     return `${base}/?scorer=1&matchId=${matchId}&token=${token}&scope=${scope}`;

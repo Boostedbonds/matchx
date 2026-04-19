@@ -1,9 +1,14 @@
 /**
  * MatchScorer.jsx
  * src/pages/MatchScorer.jsx
+ *
+ * FIXES:
+ * 1. Merged init useEffects → no more 0-0 race condition on handoff
+ * 2. commitPoint/handleUndo use correct game index (scores[gI] not scores[0])
+ * 3. active_scorer_id watcher → auto-demotes old phone to spectator on handoff
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   createMatchState,
   addPoint,
@@ -69,7 +74,6 @@ const STYLES = `
     border: 1px solid rgba(212,175,55,0.15); margin-bottom: 24px; overflow: hidden;
   }
 
-  /* Singles: one clickable panel per side */
   .scorer-team {
     display: flex; flex-direction: column; align-items: center;
     justify-content: center; padding: 24px 16px; gap: 6px;
@@ -79,7 +83,6 @@ const STYLES = `
   .scorer-team.left  { border-right: 1px solid rgba(212,175,55,0.1); }
   .scorer-team.right { border-left:  1px solid rgba(212,175,55,0.1); }
 
-  /* Doubles: team panel split into two clickable player rows */
   .scorer-team.doubles {
     padding: 0; flex-direction: column; cursor: default;
   }
@@ -119,7 +122,6 @@ const STYLES = `
     flex-shrink: 0;
   }
 
-  /* Score shown below team players in doubles */
   .team-score-row {
     width: 100%; display: flex; justify-content: center; align-items: center;
     padding: 10px 0 16px;
@@ -244,11 +246,63 @@ const STYLES = `
     border-radius: 50%; animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Demoted banner ── */
+  .demoted-banner {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.92); backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px; padding: 40px;
+    animation: sh-fade 0.3s ease;
+  }
+  @keyframes sh-fade { from { opacity:0; } to { opacity:1; } }
+  .demoted-title {
+    font-family: 'Bebas Neue', sans-serif; font-size: 36px;
+    letter-spacing: 0.08em; color: #ffd700; text-align: center;
+  }
+  .demoted-sub {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.15em; color: rgba(255,255,255,0.4);
+    text-align: center; text-transform: uppercase;
+  }
 `;
 
-// ── Helper: parse player objects from matchData ────────────────────────────
-// For doubles, player1_name is "Alice / Bob" and player3_id/player4_id exist.
-// We split these into individual player objects so ELO/stats work per person.
+// ── Pure helper: merge DB row into existing match state ───────────────────────
+// Used both by the init effect and the realtime listener.
+function syncMatchFromState(prev, row) {
+  const currentGameIdx = (row.current_game ?? prev.currentGame) - 1;
+  const newScores = prev.scores.map((s, i) =>
+    i === currentGameIdx
+      ? { ...s, p1: row.score_a ?? s.p1, p2: row.score_b ?? s.p2 }
+      : s
+  );
+
+  // Prefer full scores JSON if stored (most accurate across all games)
+  let parsedScores = newScores;
+  if (row.scores) {
+    try {
+      const dbScores = typeof row.scores === "string" ? JSON.parse(row.scores) : row.scores;
+      if (Array.isArray(dbScores) && dbScores.length > 0) {
+        parsedScores = prev.scores.map((s, i) =>
+          dbScores[i] ? { p1: dbScores[i].p1 ?? s.p1, p2: dbScores[i].p2 ?? s.p2 } : s
+        );
+      }
+    } catch (e) { /* use newScores fallback */ }
+  }
+
+  return {
+    ...prev,
+    scores:      parsedScores,
+    gamesWon:    row.games_won    ?? prev.gamesWon,
+    currentGame: row.current_game ?? prev.currentGame,
+    server:      row.server       ?? prev.server,
+    ...(row.status === "completed"
+      ? { status: "finished", winner: row.winner ?? prev.winner }
+      : {}),
+  };
+}
+
+// ── Parse player objects from matchData ───────────────────────────────────────
 function parsePlayers(matchData) {
   const isDoubles = matchData.match_type === "doubles";
 
@@ -261,48 +315,78 @@ function parsePlayers(matchData) {
     };
   }
 
-  // Split "Alice / Bob" into individual names
   const [a1name, a2name] = (matchData.player1_name || "").split(" / ").map(s => s.trim());
   const [b1name, b2name] = (matchData.player2_name || "").split(" / ").map(s => s.trim());
 
   return {
-    p1: { id: matchData.player1_id,  name: a1name || "Player A1" },
-    p2: { id: matchData.player2_id,  name: b1name || "Player B1" },
-    p3: { id: matchData.player3_id,  name: a2name || "Player A2" },
-    p4: { id: matchData.player4_id,  name: b2name || "Player B2" },
+    p1: { id: matchData.player1_id, name: a1name || "Player A1" },
+    p2: { id: matchData.player2_id, name: b1name || "Player B1" },
+    p3: { id: matchData.player3_id, name: a2name || "Player A2" },
+    p4: { id: matchData.player4_id, name: b2name || "Player B2" },
   };
 }
 
-export default function MatchScorer({ onNav, matchData, role = "spectator", onMatchEnd, onHandoff }) {
+export default function MatchScorer({ onNav, matchData, role = "spectator", onMatchEnd, onHandoff, onForceDemote }) {
   const [match,      setMatch]      = useState(null);
-  const [shotPicker, setShotPicker] = useState(null); // "p1" | "p2" | player id for doubles
-  const commentaryRef = useRef(null);
-
-  const isScorer  = role === "scorer";
+  const [shotPicker, setShotPicker] = useState(null);
+  const [demoted,    setDemoted]    = useState(false); // FIX 2b: shown when kicked off scorer
+  const commentaryRef    = useRef(null);
+  const currentUserIdRef = useRef(null); // FIX 2b: store user id for active_scorer_id check
+  const isScorer  = role === "scorer" && !demoted;
   const isDoubles = matchData?.match_type === "doubles";
   const players   = matchData ? parsePlayers(matchData) : null;
 
-  // ── Build engine state ────────────────────────────────────────────────────
+  // ── Fetch current user id once ────────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      currentUserIdRef.current = data?.user?.id ?? null;
+    });
+  }, []);
+
+  // ── FIX 2a: Single merged init effect — no more 0-0 race condition ────────
+  // Old code had TWO effects: one called createMatchState (0-0) and a second
+  // fetched DB. They raced and createMatchState often won, showing 0-0.
+  // Now: create skeleton state AND immediately overwrite with live DB data
+  // in the same async flow, so the DB values always win.
   useEffect(() => {
     if (!matchData) return;
-    const p1 = { id: matchData.player1_id, name: players.p1.name, init: players.p1.name.slice(0,2).toUpperCase(), rating: matchData.player1_rating || 1000 };
-    const p2 = { id: matchData.player2_id, name: players.p2.name, init: players.p2.name.slice(0,2).toUpperCase(), rating: matchData.player2_rating || 1000 };
-    setMatch(createMatchState(p1, p2));
-  }, [matchData]);
 
-  // ── Fetch latest score from DB on mount ──────────────────────────────────
-  useEffect(() => {
-    if (!matchData?.id) return;
-    async function fetchLatest() {
-      const { data } = await supabase.from("matches").select("*").eq("id", matchData.id).single();
-      if (data) syncMatchFromDB(data);
+    const p1 = {
+      id:     matchData.player1_id,
+      name:   players.p1.name,
+      init:   players.p1.name.slice(0, 2).toUpperCase(),
+      rating: matchData.player1_rating || 1000,
+    };
+    const p2 = {
+      id:     matchData.player2_id,
+      name:   players.p2.name,
+      init:   players.p2.name.slice(0, 2).toUpperCase(),
+      rating: matchData.player2_rating || 1000,
+    };
+
+    // Step 1: set skeleton (gives instant UI)
+    const base = createMatchState(p1, p2);
+    setMatch(base);
+
+    // Step 2: immediately hydrate with real scores from DB
+    // This overwrites the 0-0 skeleton before the user can even see it
+    if (matchData.id) {
+      supabase
+        .from("matches")
+        .select("*")
+        .eq("id", matchData.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setMatch(prev => (prev ? syncMatchFromState(prev, data) : prev));
+          }
+        });
     }
-    fetchLatest();
-  }, [matchData?.id]);
+  }, [matchData?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Realtime subscription ─────────────────────────────────────────────────
-  // FIX: Spectators need reliable realtime. We use a unique channel name per
-  // session to avoid stale subscriptions, and poll as a fallback every 5s.
+  // ── FIX 1 + FIX 2b: Realtime subscription ────────────────────────────────
+  // FIX 1: Spectators get score updates via postgres_changes
+  // FIX 2b: Watches active_scorer_id — auto-demotes old phone to spectator
   useEffect(() => {
     if (!matchData?.id) return;
 
@@ -311,24 +395,57 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
       .channel(channelName)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchData.id}` },
-        (payload) => syncMatchFromDB(payload.new)
+        {
+          event:  "UPDATE",
+          schema: "public",
+          table:  "matches",
+          filter: `id=eq.${matchData.id}`,
+        },
+        (payload) => {
+          const row = payload.new;
+
+          // ── FIX 2b: active_scorer_id changed → demote old scorer ─────────
+          // If we think we're scorer but the DB says someone else is active scorer,
+          // force-demote this device to spectator so only one scorer exists.
+          if (
+            role === "scorer" &&
+            row.active_scorer_id !== undefined &&
+            row.active_scorer_id !== null &&
+            currentUserIdRef.current !== null &&
+            row.active_scorer_id !== currentUserIdRef.current
+          ) {
+            setDemoted(true);
+            onForceDemote?.(); // notify App.jsx to updateRole("spectator")
+            return; // don't sync score state, we're now spectator
+          }
+
+          // ── FIX 1: sync score update to all devices ───────────────────────
+          setMatch(prev => (prev ? syncMatchFromState(prev, row) : prev));
+        }
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          // Re-fetch latest on successful subscribe to catch any missed updates
-          supabase.from("matches").select("*").eq("id", matchData.id).single()
-            .then(({ data }) => { if (data) syncMatchFromDB(data); });
+          // Re-fetch on successful subscribe to catch any missed updates
+          supabase
+            .from("matches")
+            .select("*")
+            .eq("id", matchData.id)
+            .single()
+            .then(({ data }) => {
+              if (data) setMatch(prev => (prev ? syncMatchFromState(prev, data) : prev));
+            });
         }
       });
 
-    // ── Polling fallback: every 5s fetch latest score ─────────────────────
-    // Handles cases where realtime websocket is unreliable (mobile networks)
+    // Polling fallback every 5s for spectators on unreliable mobile networks
     const pollInterval = setInterval(async () => {
-      if (!isScorer) { // Only poll for spectators — scorer manages state locally
+      if (!isScorer) {
         const { data } = await supabase
-          .from("matches").select("*").eq("id", matchData.id).single();
-        if (data) syncMatchFromDB(data);
+          .from("matches")
+          .select("*")
+          .eq("id", matchData.id)
+          .single();
+        if (data) setMatch(prev => (prev ? syncMatchFromState(prev, data) : prev));
       }
     }, 5000);
 
@@ -336,49 +453,7 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
-  }, [matchData?.id, isScorer]);
-
-  function syncMatchFromDB(row) {
-    setMatch(prev => {
-      if (!prev) return prev;
-
-      // ── FIX: sync score into the CORRECT game slot, not always index 0 ──
-      // row.current_game tells us which game is active (1-indexed)
-      // row.score_a/score_b are the scores for the CURRENT game
-      const currentGameIdx = (row.current_game ?? prev.currentGame) - 1;
-      const newScores = prev.scores.map((s, i) =>
-        i === currentGameIdx
-          ? { ...s, p1: row.score_a ?? s.p1, p2: row.score_b ?? s.p2 }
-          : s
-      );
-
-      // Also parse full scores JSON if available (most accurate)
-      let parsedScores = newScores;
-      if (row.scores) {
-        try {
-          const dbScores = typeof row.scores === "string" ? JSON.parse(row.scores) : row.scores;
-          if (Array.isArray(dbScores) && dbScores.length > 0) {
-            parsedScores = prev.scores.map((s, i) =>
-              dbScores[i] ? { p1: dbScores[i].p1 ?? s.p1, p2: dbScores[i].p2 ?? s.p2 } : s
-            );
-          }
-        } catch (e) { /* use newScores fallback */ }
-      }
-
-      const updated = {
-        ...prev,
-        scores:      parsedScores,
-        gamesWon:    row.games_won    ?? prev.gamesWon,
-        currentGame: row.current_game ?? prev.currentGame,
-        server:      row.server       ?? prev.server,
-      };
-      if (row.status === "completed") {
-        updated.status = "finished";
-        updated.winner = row.winner ?? prev.winner;
-      }
-      return updated;
-    });
-  }
+  }, [matchData?.id, role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (commentaryRef.current) commentaryRef.current.scrollTop = 0;
@@ -389,7 +464,10 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
       <>
         <style>{STYLES}</style>
         <div className="scorer-root">
-          <div className="scorer-loading"><div className="scorer-spinner" />LOADING MATCH...</div>
+          <div className="scorer-loading">
+            <div className="scorer-spinner" />
+            LOADING MATCH...
+          </div>
         </div>
       </>
     );
@@ -399,20 +477,23 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
   const score = match.scores[gIdx] || match.scores[0];
   const isLive = match.status === "live";
 
-  // ── Commit point ──────────────────────────────────────────────────────────
-  // scorer is "p1" or "p2" (which team scored), scoringPlayerId is the specific player
+  // ── FIX 1: commitPoint — use correct game index, not always [0] ──────────
+  // Old: score_a: next.scores[0].p1  ← always wrote game-1 score to DB
+  // New: score_a: next.scores[gI].p1 ← writes the actual current game's score
   async function commitPoint(scorer, shotType, scoringPlayerId) {
-    const next     = addPoint(match, { scorer, shotType });
+    const next = addPoint(match, { scorer, shotType });
     const newEvent = next.events[next.events.length - 1];
     setMatch(next);
 
     if (!matchData?.id) return;
 
+    // Correct game index for the state AFTER the point
+    const gI = next.currentGame - 1;
+
     try {
       if (next.status === "finished") {
         await finishMatch(matchData.id, next.winner);
 
-        // Update ALL players' stats — all 4 in doubles, 2 in singles
         const teamAWon = next.winner === "p1";
         const allPlayers = [
           { id: players.p1.id, won: teamAWon },
@@ -429,8 +510,8 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
         setTimeout(() => onMatchEnd?.(), 3000);
       } else {
         await updateMatch(matchData.id, {
-          score_a:      next.scores[0].p1,
-          score_b:      next.scores[0].p2,
+          score_a:      next.scores[gI].p1,   // FIX: was scores[0]
+          score_b:      next.scores[gI].p2,   // FIX: was scores[0]
           scores:       next.scores,
           games_won:    next.gamesWon,
           current_game: next.currentGame,
@@ -444,13 +525,11 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
     }
   }
 
-  // Singles: tap the team panel → shot picker
   function handleTeamTap(team) {
     if (!isScorer || !isLive || isDoubles) return;
     setShotPicker({ team, playerId: team === "p1" ? players.p1.id : players.p2.id });
   }
 
-  // Doubles: tap a specific player → shot picker
   function handleDoublesPlayerTap(team, playerId) {
     if (!isScorer || !isLive) return;
     setShotPicker({ team, playerId });
@@ -462,14 +541,19 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
     await commitPoint(team, shotType, playerId);
   }
 
+  // ── FIX 1: handleUndo — use correct game index ────────────────────────────
   async function handleUndo() {
     const prev = undoPoint(match);
     setMatch(prev);
     if (matchData?.id) {
+      const gI = prev.currentGame - 1; // FIX: was scores[0]
       await updateMatch(matchData.id, {
-        score_a: prev.scores[0].p1, score_b: prev.scores[0].p2,
-        scores: prev.scores, games_won: prev.gamesWon,
-        current_game: prev.currentGame, server: prev.server,
+        score_a:      prev.scores[gI].p1,
+        score_b:      prev.scores[gI].p2,
+        scores:       prev.scores,
+        games_won:    prev.gamesWon,
+        current_game: prev.currentGame,
+        server:       prev.server,
       });
     }
   }
@@ -492,15 +576,40 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
       <style>{STYLES}</style>
       <div className="scorer-root">
 
+        {/* FIX 2b: Demoted overlay — shown when active_scorer_id changes away from us */}
+        {demoted && (
+          <div className="demoted-banner">
+            <div style={{ fontSize: 48 }}>📲</div>
+            <div className="demoted-title">Scoring Handed Off</div>
+            <div className="demoted-sub">Another device is now the scorer · You are now spectator</div>
+            <button
+              className="ctrl-btn"
+              style={{ marginTop: 8, maxWidth: 240 }}
+              onClick={() => {
+                setDemoted(false);
+                // onForceDemote already called; this just closes the banner
+              }}
+            >
+              Continue Watching →
+            </button>
+          </div>
+        )}
+
         {/* TOP BAR */}
         <div className="scorer-topbar">
           <div className="scorer-logo">MATCH<span style={{ color: "#00e6a0" }}>X</span></div>
-          {!isScorer && <div className="scorer-role-badge">👁 Spectator View</div>}
+          {!isScorer && !demoted && <div className="scorer-role-badge">👁 Spectator View</div>}
           {shareUrl && <div className="scorer-share">👁 {shareUrl}</div>}
           <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-            {isScorer && onHandoff && <button className="scorer-handoff-btn" onClick={onHandoff}>📲 Hand Off</button>}
+            {isScorer && onHandoff && (
+              <button className="scorer-handoff-btn" onClick={onHandoff}>📲 Hand Off</button>
+            )}
             {isScorer && (
-              <button className="ctrl-btn danger" style={{ flex: "none", padding: "6px 14px", fontSize: 12 }} onClick={handleEndMatch}>
+              <button
+                className="ctrl-btn danger"
+                style={{ flex: "none", padding: "6px 14px", fontSize: 12 }}
+                onClick={handleEndMatch}
+              >
                 END MATCH
               </button>
             )}
@@ -531,27 +640,24 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             {isDoubles ? (
               <div className="scorer-team left doubles">
                 <div className="team-name-header">▸ {matchData?.team_a_name || "Team A"}</div>
-                {/* Player A1 */}
                 <div
                   className={`doubles-player ${isScorer ? "scorer-only" : ""}`}
                   onClick={() => handleDoublesPlayerTap("p1", players.p1.id)}
                 >
                   <div className={`dp-serve-dot ${match.server === "p1" ? "" : "hidden"}`} />
-                  <div className="dp-init">{players.p1.name.slice(0,2).toUpperCase()}</div>
+                  <div className="dp-init">{players.p1.name.slice(0, 2).toUpperCase()}</div>
                   <div className="dp-name">{players.p1.name}</div>
                   {isScorer && isLive && <div className="dp-hint">TAP</div>}
                 </div>
-                {/* Player A2 */}
                 <div
                   className={`doubles-player ${isScorer ? "scorer-only" : ""}`}
                   onClick={() => handleDoublesPlayerTap("p1", players.p3?.id)}
                 >
                   <div className="dp-serve-dot hidden" />
-                  <div className="dp-init">{(players.p3?.name || "P3").slice(0,2).toUpperCase()}</div>
+                  <div className="dp-init">{(players.p3?.name || "P3").slice(0, 2).toUpperCase()}</div>
                   <div className="dp-name">{players.p3?.name || "Player A2"}</div>
                   {isScorer && isLive && <div className="dp-hint">TAP</div>}
                 </div>
-                {/* Team score */}
                 <div className="team-score-row">
                   <div className="scorer-score">{score.p1}</div>
                 </div>
@@ -561,8 +667,9 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
                 className={`scorer-team left ${isScorer ? "scorer-only" : ""}`}
                 onClick={() => handleTeamTap("p1")}
               >
-{/* Team A name singles */}
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,letterSpacing:"0.2em",textTransform:"uppercase",color:"rgba(0,255,200,0.5)",marginBottom:6}}>▸ {matchData?.team_a_name || ""}</div>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(0,255,200,0.5)", marginBottom: 6 }}>
+                  ▸ {matchData?.team_a_name || ""}
+                </div>
                 {match.server === "p1" && <div className="scorer-serve-dot" />}
                 <div className="scorer-init">{match.player1.init}</div>
                 <div className="scorer-name">{match.player1.name}</div>
@@ -577,11 +684,15 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
               <div className="scorer-game-no">{match.currentGame}</div>
               <div className="scorer-game-label" style={{ marginTop: 8 }}>Games</div>
               <div className="scorer-games-won">
-                {[0,1].map(i => <div key={i} className={`gw-dot ${match.gamesWon.p1 > i ? "won" : ""}`} />)}
+                {[0, 1].map(i => (
+                  <div key={i} className={`gw-dot ${match.gamesWon.p1 > i ? "won" : ""}`} />
+                ))}
               </div>
               <div style={{ color: "rgba(212,175,55,0.3)", fontSize: 12, margin: "2px 0" }}>–</div>
               <div className="scorer-games-won">
-                {[0,1].map(i => <div key={i} className={`gw-dot ${match.gamesWon.p2 > i ? "won" : ""}`} />)}
+                {[0, 1].map(i => (
+                  <div key={i} className={`gw-dot ${match.gamesWon.p2 > i ? "won" : ""}`} />
+                ))}
               </div>
             </div>
 
@@ -589,27 +700,24 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             {isDoubles ? (
               <div className="scorer-team right doubles">
                 <div className="team-name-header right">{matchData?.team_b_name || "Team B"} ◂</div>
-                {/* Player B1 */}
                 <div
                   className={`doubles-player ${isScorer ? "scorer-only" : ""}`}
                   onClick={() => handleDoublesPlayerTap("p2", players.p2.id)}
                 >
                   <div className={`dp-serve-dot ${match.server === "p2" ? "" : "hidden"}`} />
-                  <div className="dp-init">{players.p2.name.slice(0,2).toUpperCase()}</div>
+                  <div className="dp-init">{players.p2.name.slice(0, 2).toUpperCase()}</div>
                   <div className="dp-name">{players.p2.name}</div>
                   {isScorer && isLive && <div className="dp-hint">TAP</div>}
                 </div>
-                {/* Player B2 */}
                 <div
                   className={`doubles-player ${isScorer ? "scorer-only" : ""}`}
                   onClick={() => handleDoublesPlayerTap("p2", players.p4?.id)}
                 >
                   <div className="dp-serve-dot hidden" />
-                  <div className="dp-init">{(players.p4?.name || "P4").slice(0,2).toUpperCase()}</div>
+                  <div className="dp-init">{(players.p4?.name || "P4").slice(0, 2).toUpperCase()}</div>
                   <div className="dp-name">{players.p4?.name || "Player B2"}</div>
                   {isScorer && isLive && <div className="dp-hint">TAP</div>}
                 </div>
-                {/* Team score */}
                 <div className="team-score-row">
                   <div className="scorer-score">{score.p2}</div>
                 </div>
@@ -619,8 +727,9 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
                 className={`scorer-team right ${isScorer ? "scorer-only" : ""}`}
                 onClick={() => handleTeamTap("p2")}
               >
-{/* Team B name singles */}
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,letterSpacing:"0.2em",textTransform:"uppercase",color:"rgba(255,184,0,0.5)",marginBottom:6}}>{matchData?.team_b_name || ""} ◂</div>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,184,0,0.5)", marginBottom: 6 }}>
+                  {matchData?.team_b_name || ""} ◂
+                </div>
                 {match.server === "p2" && <div className="scorer-serve-dot" />}
                 <div className="scorer-init">{match.player2.init}</div>
                 <div className="scorer-name">{match.player2.name}</div>
@@ -649,7 +758,9 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
           {isScorer && isLive && !shotPicker && (
             <div className="scorer-controls">
               <button className="ctrl-btn" onClick={handleUndo}>↩ UNDO</button>
-              {onHandoff && <button className="ctrl-btn" onClick={onHandoff}>📲 HAND OFF SCORING</button>}
+              {onHandoff && (
+                <button className="ctrl-btn" onClick={onHandoff}>📲 HAND OFF SCORING</button>
+              )}
             </div>
           )}
 
@@ -662,8 +773,12 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             </div>
           )}
 
-          {!isScorer && (
-            <div style={{ textAlign: "center", marginTop: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.18em", color: "rgba(0,230,160,0.4)", textTransform: "uppercase" }}>
+          {!isScorer && !demoted && (
+            <div style={{
+              textAlign: "center", marginTop: 16,
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+              letterSpacing: "0.18em", color: "rgba(0,230,160,0.4)", textTransform: "uppercase",
+            }}>
               👁 Spectator View · Live Updates
             </div>
           )}
