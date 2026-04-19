@@ -2,25 +2,16 @@
  * MatchScorer.jsx
  * src/pages/MatchScorer.jsx
  *
- * FIXES IN THIS VERSION:
+ * FIX 4 — applyDBRow was overwriting correct scores with stale JSON column
+ *   The `scores` JSON column in DB is never updated (always all zeros).
+ *   Old code: read score_a/score_b correctly → then immediately overwrote
+ *   with `scores` JSON array → always reset display to 0-0 on every poll.
+ *   Fix: score_a/score_b are authoritative for the current game.
+ *   The `scores` JSON column is only used for OTHER games (historical).
  *
- * FIX 1 — Broadcast channel name mismatch (ROOT CAUSE of 0-0 bug)
- *   Before: Listener on `match-live-{id}`, sender on `match-score-{id}` → never connected
- *   After:  Both use `match-live-{id}` and sender reuses channelRef (same WS connection)
- *
- * FIX 2 — Poll overwriting optimistic score
- *   Before: Poll fired 3s after tap → fetched stale DB row → reset score to 0
- *   After:  Poll skips if a write happened in the last 4s (lastWriteRef guard)
- *
- * FIX 3 — broadcastScore created a new channel every call
- *   Before: supabase.channel(BROADCAST_CHANNEL).send() opens a NEW channel each time
- *   After:  channelRef.current.send() reuses the already-subscribed channel
- *
- * ORIGINAL FIXES RETAINED:
- *   - Merged init effects → no 0-0 race condition on handoff
- *   - Correct game index in commitPoint/handleUndo (was always [0])
- *   - active_scorer_id watcher → auto-demotes old phone to spectator
- *   - Three-layer realtime: Broadcast + Poll + postgres_changes
+ * FIX 1 — Broadcast channel name mismatch (sender/listener on different channels)
+ * FIX 2 — Poll overwriting optimistic score (lastWriteRef guard)
+ * FIX 3 — broadcastScore created a new channel every call (channelRef reuse)
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -45,7 +36,6 @@ const STYLES = `
     min-height: 100vh; background: #030508; color: #e8e0d0;
     font-family: 'Rajdhani', sans-serif; display: flex; flex-direction: column;
   }
-
   .scorer-topbar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 16px 24px; border-bottom: 1px solid rgba(212,175,55,0.12);
@@ -91,17 +81,14 @@ const STYLES = `
     0%, 100% { opacity: 1; transform: scale(1); }
     50%       { opacity: 0.4; transform: scale(0.75); }
   }
-
   .scorer-body {
     flex: 1; display: flex; flex-direction: column;
     max-width: 960px; margin: 0 auto; width: 100%; padding: 24px 20px 40px;
   }
-
   .scorer-board {
     display: grid; grid-template-columns: 1fr auto 1fr;
     border: 1px solid rgba(212,175,55,0.15); margin-bottom: 24px; overflow: hidden;
   }
-
   .scorer-team {
     display: flex; flex-direction: column; align-items: center;
     justify-content: center; padding: 24px 16px; gap: 6px;
@@ -112,7 +99,6 @@ const STYLES = `
   .scorer-team.right { border-left:  1px solid rgba(212,175,55,0.1); }
   .scorer-team.doubles { padding: 0; flex-direction: column; cursor: default; }
   .scorer-team.doubles:active { background: none; }
-
   .doubles-player {
     width: 100%; display: flex; align-items: center; gap: 10px;
     padding: 10px 14px; cursor: pointer; transition: background 0.15s;
@@ -121,7 +107,6 @@ const STYLES = `
   .doubles-player:last-child { border-bottom: none; }
   .doubles-player:hover { background: rgba(0,230,160,0.06); }
   .doubles-player.scorer-only:active { background: rgba(0,230,160,0.1); }
-
   .dp-serve-dot {
     width: 6px; height: 6px; border-radius: 50%;
     background: #00e6a0; box-shadow: 0 0 6px #00e6a0; flex-shrink: 0;
@@ -143,7 +128,6 @@ const STYLES = `
     font-family: 'JetBrains Mono', monospace; font-size: 8px;
     letter-spacing: 0.1em; color: rgba(0,230,160,0.4); text-transform: uppercase; flex-shrink: 0;
   }
-
   .team-score-row {
     width: 100%; display: flex; justify-content: center; align-items: center;
     padding: 10px 0 16px;
@@ -173,7 +157,6 @@ const STYLES = `
     font-family: 'JetBrains Mono', monospace; font-size: 9px;
     letter-spacing: 0.15em; color: rgba(0,230,160,0.4); text-transform: uppercase;
   }
-
   .scorer-mid {
     display: flex; flex-direction: column; align-items: center;
     justify-content: center; padding: 16px 12px; gap: 8px;
@@ -190,7 +173,6 @@ const STYLES = `
     background: rgba(212,175,55,0.15); border: 1px solid rgba(212,175,55,0.2);
   }
   .gw-dot.won { background: #ffd700; box-shadow: 0 0 6px rgba(255,215,0,0.5); }
-
   .team-name-header {
     width: 100%; padding: 8px 14px 6px;
     font-family: 'JetBrains Mono', monospace; font-size: 9px;
@@ -202,7 +184,6 @@ const STYLES = `
     color: rgba(255,184,0,0.5); border-bottom-color: rgba(255,184,0,0.08);
     background: rgba(255,184,0,0.03); text-align: right;
   }
-
   .shot-picker { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
   @media (max-width: 480px) { .shot-picker { grid-template-columns: repeat(2, 1fr); } }
   .shot-btn {
@@ -218,7 +199,6 @@ const STYLES = `
     letter-spacing: 0.18em; color: #00e6a0; text-transform: uppercase;
     margin-bottom: 10px; text-align: center;
   }
-
   .scorer-controls { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
   .ctrl-btn {
     flex: 1; min-width: 100px; padding: 12px 16px;
@@ -229,7 +209,6 @@ const STYLES = `
   .ctrl-btn:hover { background: rgba(212,175,55,0.1); color: #ffd700; }
   .ctrl-btn.danger { border-color: rgba(255,80,80,0.2); color: rgba(255,100,100,0.6); }
   .ctrl-btn.danger:hover { background: rgba(255,80,80,0.08); color: #ff6464; }
-
   .commentary-box {
     border: 1px solid rgba(212,175,55,0.1); background: rgba(0,0,0,0.3);
     max-height: 200px; overflow-y: auto; padding: 12px 16px;
@@ -241,7 +220,6 @@ const STYLES = `
   }
   .commentary-line:first-child { color: #e8e0d0; }
   .commentary-line:last-child { border-bottom: none; }
-
   .winner-banner {
     text-align: center; padding: 40px 24px;
     border: 1px solid rgba(212,175,55,0.25); background: rgba(212,175,55,0.04); margin-bottom: 24px;
@@ -253,7 +231,6 @@ const STYLES = `
     -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
   .winner-sub { font-size: 16px; color: rgba(232,224,208,0.5); letter-spacing: 0.06em; margin-top: 8px; }
-
   .scorer-loading {
     display: flex; align-items: center; justify-content: center;
     height: 60vh; flex-direction: column; gap: 16px;
@@ -266,7 +243,6 @@ const STYLES = `
     border-radius: 50%; animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-
   .demoted-banner {
     position: fixed; inset: 0; z-index: 9999;
     background: rgba(0,0,0,0.92); backdrop-filter: blur(8px);
@@ -285,25 +261,35 @@ const STYLES = `
 `;
 
 // ── Apply a DB row onto existing match state ──────────────────────────────────
+// FIX 4: score_a / score_b are the authoritative source for the current game.
+// The `scores` JSON column is NEVER updated by updateMatch (always stays 0).
+// Old code overwrote the correct score_a/score_b with the stale JSON column,
+// resetting the display to 0-0 on every poll and postgres_changes event.
 function applyDBRow(prev, row) {
   const gameIdx = (row.current_game ?? prev.currentGame) - 1;
 
-  let parsedScores = prev.scores.map((s, i) =>
-    i === gameIdx
-      ? { ...s, p1: row.score_a ?? s.p1, p2: row.score_b ?? s.p2 }
-      : s
-  );
+  const parsedScores = prev.scores.map((s, i) => {
+    if (i === gameIdx) {
+      // Current game: use score_a / score_b — these are updated on every point.
+      // Never fall back to the `scores` JSON column for the current game.
+      return {
+        p1: row.score_a != null ? row.score_a : s.p1,
+        p2: row.score_b != null ? row.score_b : s.p2,
+      };
+    }
 
-  if (row.scores) {
-    try {
-      const db = typeof row.scores === "string" ? JSON.parse(row.scores) : row.scores;
-      if (Array.isArray(db) && db.length > 0) {
-        parsedScores = prev.scores.map((s, i) =>
-          db[i] ? { p1: db[i].p1 ?? s.p1, p2: db[i].p2 ?? s.p2 } : s
-        );
-      }
-    } catch (_) { /* use slot-based fallback */ }
-  }
+    // Past games: use `scores` JSON for historical game scores only.
+    if (row.scores) {
+      try {
+        const db = typeof row.scores === "string" ? JSON.parse(row.scores) : row.scores;
+        if (Array.isArray(db) && db[i]) {
+          return { p1: db[i].p1 ?? s.p1, p2: db[i].p2 ?? s.p2 };
+        }
+      } catch (_) { /* keep prev */ }
+    }
+
+    return s;
+  });
 
   return {
     ...prev,
@@ -367,30 +353,20 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
 
   const commentaryRef    = useRef(null);
   const currentUserIdRef = useRef(null);
-
-  // ── FIX 1: Store channel reference so broadcastScore reuses it ────────────
-  // Previously, broadcastScore called supabase.channel(BROADCAST_CHANNEL).send()
-  // which opened a BRAND NEW channel on every point — completely separate from
-  // the listener channel. Spectators never received anything.
-  const channelRef = useRef(null);
-
-  // ── FIX 2: Track last write time to prevent poll from overwriting optimistic state
-  // Without this, the poll fires 3s after a tap and fetches a potentially
-  // stale DB row (write still in-flight), resetting the score back to 0.
-  const lastWriteRef = useRef(0);
+  const channelRef       = useRef(null);
+  const lastWriteRef     = useRef(0);
 
   const isScorer  = role === "scorer" && !demoted;
   const isDoubles = matchData?.match_type === "doubles";
   const players   = matchData ? parsePlayers(matchData) : null;
 
-  // ── Get current user id ───────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       currentUserIdRef.current = data?.user?.id ?? null;
     });
   }, []);
 
-  // ── INIT: build skeleton then hydrate with real DB scores ─────────────────
+  // ── INIT ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!matchData) return;
 
@@ -416,29 +392,20 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
     }
   }, [matchData?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── REALTIME: Three layers ────────────────────────────────────────────────
+  // ── REALTIME ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!matchData?.id) return;
 
-    // FIX 1: Channel name is now the SAME string used in broadcastScore.
-    // Both scorer (sender) and spectators (listeners) must use identical channel name.
-    // Previously: listener = `match-live-{id}`, sender = `match-score-{id}` → BROKEN
-    // Now:        both use `match-live-{id}` via channelRef → FIXED
     const channel = supabase
       .channel(`match-live-${matchData.id}`)
-
-      // ── LAYER 1: Broadcast — scorer pushes state after every point ────────
       .on("broadcast", { event: "score" }, ({ payload }) => {
         setMatch(prev => applyBroadcast(prev, payload));
       })
-
-      // ── LAYER 3: postgres_changes — bonus if Realtime is enabled in DB ────
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchData.id}` },
         (payload) => {
           const row = payload.new;
-
           if (
             role === "scorer" &&
             row.active_scorer_id != null &&
@@ -449,28 +416,18 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             onForceDemote?.();
             return;
           }
-
-          // FIX 2: Skip DB row if we wrote recently — prevents stale overwrite
           if (Date.now() - lastWriteRef.current < 4000) return;
-
           setMatch(prev => prev ? applyDBRow(prev, row) : prev);
         }
       )
       .subscribe();
 
-    // Store ref so broadcastScore can reuse this channel
     channelRef.current = channel;
 
-    // ── LAYER 2: Poll every 3s — guaranteed fallback ───────────────────────
     const pollInterval = setInterval(async () => {
-      // FIX 2: Skip poll entirely if a write happened in the last 4 seconds.
-      // This prevents the poll from fetching a stale row and overwriting the
-      // optimistic score update the scorer just made.
       if (Date.now() - lastWriteRef.current < 4000) return;
-
       const row = await fetchMatchRow(matchData.id);
       if (!row) return;
-
       if (
         role === "scorer" &&
         row.active_scorer_id != null &&
@@ -482,7 +439,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
         clearInterval(pollInterval);
         return;
       }
-
       setMatch(prev => prev ? applyDBRow(prev, row) : prev);
     }, 3000);
 
@@ -512,9 +468,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
   const score  = match.scores[gIdx] || match.scores[0];
   const isLive = match.status === "live";
 
-  // ── FIX 1: broadcastScore now reuses channelRef.current (already subscribed)
-  // Previously called supabase.channel(BROADCAST_CHANNEL).send() which created
-  // a new unsubscribed channel each time — those sends went nowhere.
   async function broadcastScore(nextMatch) {
     if (!channelRef.current) return;
     try {
@@ -536,18 +489,12 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
     }
   }
 
-  // ── commitPoint ───────────────────────────────────────────────────────────
   async function commitPoint(scorer, shotType, scoringPlayerId) {
     const next     = addPoint(match, { scorer, shotType });
     const newEvent = next.events[next.events.length - 1];
 
-    // FIX 2: Record write time BEFORE setMatch so poll guard is active immediately
     lastWriteRef.current = Date.now();
-
-    // 1. Update local state immediately
     setMatch(next);
-
-    // 2. Broadcast to spectators via the already-subscribed channel
     await broadcastScore(next);
 
     if (!matchData?.id) return;
@@ -557,9 +504,7 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
     try {
       if (next.status === "finished") {
         const finishResult = await finishMatch(matchData.id, next.winner);
-        if (!finishResult.success) {
-          console.error("finishMatch failed — RLS may be blocking writes:", finishResult.error);
-        }
+        if (!finishResult.success) console.error("finishMatch failed:", finishResult.error);
 
         const teamAWon = next.winner === "p1";
         const allPlayers = [
@@ -575,7 +520,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
         }
         setTimeout(() => onMatchEnd?.(), 3000);
       } else {
-        // FIX: handle { success, error } return — previously swallowed RLS errors
         const updateResult = await updateMatch(matchData.id, {
           score_a:      next.scores[gI].p1,
           score_b:      next.scores[gI].p2,
@@ -586,20 +530,11 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
           status:       next.status,
         });
         if (!updateResult.success) {
-          console.error(
-            "Score write FAILED — this is why spectators see 0-0.",
-            "Most likely cause: missing RLS UPDATE policy on matches table.",
-            "Run rls_write_policies_fix.sql in Supabase SQL Editor.",
-            updateResult.error
-          );
+          console.error("Score write FAILED:", updateResult.error);
         }
 
-        // Pass scoringPlayerId as 3rd arg — saveEvent now handles the
-        // camelCase→snake_case mapping internally, no spreading needed
         const eventResult = await saveEvent(matchData.id, newEvent, scoringPlayerId || null);
-        if (!eventResult.success) {
-          console.error("saveEvent failed:", eventResult.error);
-        }
+        if (!eventResult.success) console.error("saveEvent failed:", eventResult.error);
       }
     } catch (err) {
       console.error("commitPoint error:", err);
@@ -624,13 +559,9 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
 
   async function handleUndo() {
     const prev = undoPoint(match);
-
-    // FIX 2: Guard poll on undo too
     lastWriteRef.current = Date.now();
-
     setMatch(prev);
     await broadcastScore(prev);
-
     if (matchData?.id) {
       const gI = prev.currentGame - 1;
       await updateMatch(matchData.id, {
@@ -673,7 +604,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
           </div>
         )}
 
-        {/* TOP BAR */}
         <div className="scorer-topbar">
           <div className="scorer-logo">MATCH<span style={{ color: "#00e6a0" }}>X</span></div>
           {!isScorer && !demoted && <div className="scorer-role-badge">👁 Spectator View</div>}
@@ -694,7 +624,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
 
         <div className="scorer-body">
 
-          {/* WINNER BANNER */}
           {match.status === "finished" && (
             <div className="winner-banner">
               <div className="winner-trophy">🏆</div>
@@ -708,10 +637,8 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             </div>
           )}
 
-          {/* SCOREBOARD */}
           <div className="scorer-board">
 
-            {/* TEAM A */}
             {isDoubles ? (
               <div className="scorer-team left doubles">
                 <div className="team-name-header">▸ {matchData?.team_a_name || "Team A"}</div>
@@ -742,7 +669,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
               </div>
             )}
 
-            {/* MIDDLE */}
             <div className="scorer-mid">
               <div className="scorer-game-label">Game</div>
               <div className="scorer-game-no">{match.currentGame}</div>
@@ -756,7 +682,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
               </div>
             </div>
 
-            {/* TEAM B */}
             {isDoubles ? (
               <div className="scorer-team right doubles">
                 <div className="team-name-header right">{matchData?.team_b_name || "Team B"} ◂</div>
@@ -788,7 +713,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             )}
           </div>
 
-          {/* SHOT PICKER */}
           {isScorer && shotPicker && (
             <div style={{ marginBottom: 20 }}>
               <div className="shot-picker-label">{pickerName} — select shot type</div>
@@ -803,7 +727,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             </div>
           )}
 
-          {/* CONTROLS */}
           {isScorer && isLive && !shotPicker && (
             <div className="scorer-controls">
               <button className="ctrl-btn" onClick={handleUndo}>↩ UNDO</button>
@@ -811,7 +734,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             </div>
           )}
 
-          {/* COMMENTARY */}
           {match.commentary?.length > 0 && (
             <div className="commentary-box" ref={commentaryRef}>
               {match.commentary.map((line, i) => (
