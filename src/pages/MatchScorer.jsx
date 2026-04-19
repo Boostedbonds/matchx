@@ -2,24 +2,25 @@
  * MatchScorer.jsx
  * src/pages/MatchScorer.jsx
  *
- * REALTIME FIX — WHY 0-0 HAPPENS:
- * postgres_changes requires two things in Supabase that are often missing:
- *   1. Realtime must be ENABLED on the matches table (Database > Replication)
- *   2. RLS policy must allow SELECT for the role receiving events
- * If either is missing, the channel subscribes silently — no errors, no events.
- * Scorer sees updates (they wrote the row), spectators get nothing → stuck at 0-0.
+ * FIXES IN THIS VERSION:
  *
- * SOLUTION — Three-layer realtime, no Supabase config required:
- *   Layer 1 (INSTANT): Scorer sends a Broadcast after every point.
- *                      Spectators receive in <100ms. Zero config needed.
- *   Layer 2 (SAFE):    All devices poll DB every 3s as guaranteed fallback.
- *                      Catches page refresh, late joins, network drops.
- *   Layer 3 (BONUS):   postgres_changes kept — fires if Realtime is enabled.
+ * FIX 1 — Broadcast channel name mismatch (ROOT CAUSE of 0-0 bug)
+ *   Before: Listener on `match-live-{id}`, sender on `match-score-{id}` → never connected
+ *   After:  Both use `match-live-{id}` and sender reuses channelRef (same WS connection)
  *
- * OTHER FIXES INCLUDED:
+ * FIX 2 — Poll overwriting optimistic score
+ *   Before: Poll fired 3s after tap → fetched stale DB row → reset score to 0
+ *   After:  Poll skips if a write happened in the last 4s (lastWriteRef guard)
+ *
+ * FIX 3 — broadcastScore created a new channel every call
+ *   Before: supabase.channel(BROADCAST_CHANNEL).send() opens a NEW channel each time
+ *   After:  channelRef.current.send() reuses the already-subscribed channel
+ *
+ * ORIGINAL FIXES RETAINED:
  *   - Merged init effects → no 0-0 race condition on handoff
  *   - Correct game index in commitPoint/handleUndo (was always [0])
  *   - active_scorer_id watcher → auto-demotes old phone to spectator
+ *   - Three-layer realtime: Broadcast + Poll + postgres_changes
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -283,7 +284,7 @@ const STYLES = `
   }
 `;
 
-// ── Apply a DB row onto existing match state (pure — no setMatch call) ────────
+// ── Apply a DB row onto existing match state ──────────────────────────────────
 function applyDBRow(prev, row) {
   const gameIdx = (row.current_game ?? prev.currentGame) - 1;
 
@@ -293,7 +294,6 @@ function applyDBRow(prev, row) {
       : s
   );
 
-  // Full scores JSON array is most accurate (covers multi-game matches)
   if (row.scores) {
     try {
       const db = typeof row.scores === "string" ? JSON.parse(row.scores) : row.scores;
@@ -317,8 +317,7 @@ function applyDBRow(prev, row) {
   };
 }
 
-// ── Apply a broadcast payload (sent by scorer on every point) ─────────────────
-// The broadcast carries the full match state snapshot — no DB round-trip needed
+// ── Apply a broadcast payload ─────────────────────────────────────────────────
 function applyBroadcast(prev, payload) {
   if (!prev || !payload) return prev;
   return {
@@ -369,24 +368,29 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
   const commentaryRef    = useRef(null);
   const currentUserIdRef = useRef(null);
 
+  // ── FIX 1: Store channel reference so broadcastScore reuses it ────────────
+  // Previously, broadcastScore called supabase.channel(BROADCAST_CHANNEL).send()
+  // which opened a BRAND NEW channel on every point — completely separate from
+  // the listener channel. Spectators never received anything.
+  const channelRef = useRef(null);
+
+  // ── FIX 2: Track last write time to prevent poll from overwriting optimistic state
+  // Without this, the poll fires 3s after a tap and fetches a potentially
+  // stale DB row (write still in-flight), resetting the score back to 0.
+  const lastWriteRef = useRef(0);
+
   const isScorer  = role === "scorer" && !demoted;
   const isDoubles = matchData?.match_type === "doubles";
   const players   = matchData ? parsePlayers(matchData) : null;
 
-  // Stable broadcast channel name — same string on scorer and spectator devices
-  const BROADCAST_CHANNEL = matchData?.id ? `match-score-${matchData.id}` : null;
-
-  // ── Get current user id (needed for active_scorer_id demotion check) ──────
+  // ── Get current user id ───────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       currentUserIdRef.current = data?.user?.id ?? null;
     });
   }, []);
 
-  // ── INIT: build skeleton then immediately overwrite with real DB scores ────
-  // One effect = no race condition. The DB fetch resolves in ~200ms and the
-  // setMatch(prev => applyDBRow(...)) always wins over the 0-0 skeleton
-  // because it runs after the skeleton setMatch has already committed.
+  // ── INIT: build skeleton then hydrate with real DB scores ─────────────────
   useEffect(() => {
     if (!matchData) return;
 
@@ -403,10 +407,8 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
       rating: matchData.player2_rating || 1000,
     };
 
-    // Skeleton — renders immediately
     setMatch(createMatchState(p1, p2));
 
-    // Hydrate with real scores — overwrites skeleton before user sees it
     if (matchData.id) {
       fetchMatchRow(matchData.id).then(row => {
         if (row) setMatch(prev => prev ? applyDBRow(prev, row) : prev);
@@ -418,26 +420,25 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
   useEffect(() => {
     if (!matchData?.id) return;
 
-    // We use ONE channel for both broadcast (Layer 1) and postgres_changes (Layer 3)
-    // so Supabase only opens one websocket connection per match.
+    // FIX 1: Channel name is now the SAME string used in broadcastScore.
+    // Both scorer (sender) and spectators (listeners) must use identical channel name.
+    // Previously: listener = `match-live-{id}`, sender = `match-score-{id}` → BROKEN
+    // Now:        both use `match-live-{id}` via channelRef → FIXED
     const channel = supabase
       .channel(`match-live-${matchData.id}`)
 
       // ── LAYER 1: Broadcast — scorer pushes state after every point ────────
-      // Works with zero Supabase config. No table replication, no RLS needed.
-      // This is the primary realtime mechanism.
       .on("broadcast", { event: "score" }, ({ payload }) => {
         setMatch(prev => applyBroadcast(prev, payload));
       })
 
-      // ── LAYER 3: postgres_changes — bonus, works if Realtime is enabled ───
+      // ── LAYER 3: postgres_changes — bonus if Realtime is enabled in DB ────
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "matches", filter: `id=eq.${matchData.id}` },
         (payload) => {
           const row = payload.new;
 
-          // Demotion check: if active_scorer_id changed to someone else, demote
           if (
             role === "scorer" &&
             row.active_scorer_id != null &&
@@ -449,20 +450,27 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
             return;
           }
 
+          // FIX 2: Skip DB row if we wrote recently — prevents stale overwrite
+          if (Date.now() - lastWriteRef.current < 4000) return;
+
           setMatch(prev => prev ? applyDBRow(prev, row) : prev);
         }
       )
       .subscribe();
 
-    // ── LAYER 2: Poll every 3s — the guaranteed fallback ──────────────────
-    // This is the safety net. Even if broadcast and postgres_changes both fail
-    // (wrong Supabase config, network hiccup, mobile background throttling),
-    // spectators will never be more than 3 seconds behind.
+    // Store ref so broadcastScore can reuse this channel
+    channelRef.current = channel;
+
+    // ── LAYER 2: Poll every 3s — guaranteed fallback ───────────────────────
     const pollInterval = setInterval(async () => {
+      // FIX 2: Skip poll entirely if a write happened in the last 4 seconds.
+      // This prevents the poll from fetching a stale row and overwriting the
+      // optimistic score update the scorer just made.
+      if (Date.now() - lastWriteRef.current < 4000) return;
+
       const row = await fetchMatchRow(matchData.id);
       if (!row) return;
 
-      // Also check demotion on poll for robustness
       if (
         role === "scorer" &&
         row.active_scorer_id != null &&
@@ -479,6 +487,7 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
     }, 3000);
 
     return () => {
+      channelRef.current = null;
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
@@ -503,11 +512,13 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
   const score  = match.scores[gIdx] || match.scores[0];
   const isLive = match.status === "live";
 
-  // ── Send broadcast so all spectators update instantly ─────────────────────
+  // ── FIX 1: broadcastScore now reuses channelRef.current (already subscribed)
+  // Previously called supabase.channel(BROADCAST_CHANNEL).send() which created
+  // a new unsubscribed channel each time — those sends went nowhere.
   async function broadcastScore(nextMatch) {
-    if (!BROADCAST_CHANNEL) return;
+    if (!channelRef.current) return;
     try {
-      await supabase.channel(BROADCAST_CHANNEL).send({
+      await channelRef.current.send({
         type:    "broadcast",
         event:   "score",
         payload: {
@@ -521,7 +532,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
         },
       });
     } catch (err) {
-      // Non-fatal — Layer 2 polling catches any missed broadcasts
       console.warn("broadcast failed (poll will catch it):", err.message);
     }
   }
@@ -531,15 +541,17 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
     const next     = addPoint(match, { scorer, shotType });
     const newEvent = next.events[next.events.length - 1];
 
-    // 1. Update local state immediately (scorer sees it instantly)
+    // FIX 2: Record write time BEFORE setMatch so poll guard is active immediately
+    lastWriteRef.current = Date.now();
+
+    // 1. Update local state immediately
     setMatch(next);
 
-    // 2. Broadcast to spectators (<100ms on same network)
+    // 2. Broadcast to spectators via the already-subscribed channel
     await broadcastScore(next);
 
     if (!matchData?.id) return;
 
-    // 3. Persist to DB (use correct game index — not always [0])
     const gI = next.currentGame - 1;
 
     try {
@@ -561,8 +573,8 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
         setTimeout(() => onMatchEnd?.(), 3000);
       } else {
         await updateMatch(matchData.id, {
-          score_a:      next.scores[gI].p1,   // FIX: was scores[0]
-          score_b:      next.scores[gI].p2,   // FIX: was scores[0]
+          score_a:      next.scores[gI].p1,
+          score_b:      next.scores[gI].p2,
           scores:       next.scores,
           games_won:    next.gamesWon,
           current_game: next.currentGame,
@@ -594,10 +606,15 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
 
   async function handleUndo() {
     const prev = undoPoint(match);
+
+    // FIX 2: Guard poll on undo too
+    lastWriteRef.current = Date.now();
+
     setMatch(prev);
     await broadcastScore(prev);
+
     if (matchData?.id) {
-      const gI = prev.currentGame - 1; // FIX: was scores[0]
+      const gI = prev.currentGame - 1;
       await updateMatch(matchData.id, {
         score_a:      prev.scores[gI].p1,
         score_b:      prev.scores[gI].p2,
@@ -627,7 +644,6 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
       <style>{STYLES}</style>
       <div className="scorer-root">
 
-        {/* Demoted overlay — shown when active_scorer_id changes away from us */}
         {demoted && (
           <div className="demoted-banner">
             <div style={{ fontSize: 48 }}>📲</div>
