@@ -594,10 +594,9 @@ export default function MatchScorer({ onNav, matchData, role = "spectator", onMa
           );
         }
 
-        const eventResult = await saveEvent(matchData.id, {
-          ...newEvent,
-          scoring_player_id: scoringPlayerId || null,
-        });
+        // Pass scoringPlayerId as 3rd arg — saveEvent now handles the
+        // camelCase→snake_case mapping internally, no spreading needed
+        const eventResult = await saveEvent(matchData.id, newEvent, scoringPlayerId || null);
         if (!eventResult.success) {
           console.error("saveEvent failed:", eventResult.error);
         }

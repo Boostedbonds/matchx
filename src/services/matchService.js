@@ -182,16 +182,39 @@ export async function finishMatch(matchId, winner) {
 }
 
 // ─── Save a match event (rally, point, etc.) ──────────────────────────────────
-export async function saveEvent(matchId, event) {
+// ─── Save a match event (rally, point, etc.) ──────────────────────────────────
+// FIX: The matchEngine event uses camelCase (errorBy, scoreBefore, scoreAfter)
+// but DB columns are snake_case (error_by, score_before, score_after).
+// Spreading ...event directly caused PGRST204 on every insert — the entire
+// write failed silently, score never persisted, poll reset it to 0 each time.
+// Now we explicitly map only the columns the DB schema actually has.
+export async function saveEvent(matchId, event, scoringPlayerId = null) {
   try {
+    const row = {
+      match_id:          matchId,
+      game:              event.game              ?? null,
+      rally:             event.rally             ?? null,
+      scorer:            event.scorer            ?? null,
+      loser:             event.loser             ?? null,
+      shot_type:         event.shotType          ?? null,
+      server:            event.server            ?? null,
+      score_before:      event.scoreBefore       ?? null,
+      score_after:       event.scoreAfter        ?? null,
+      game_won:          event.gameWon           ?? false,
+      match_won:         event.matchWon          ?? false,
+      error_by:          event.errorBy           ?? null,
+      scoring_player_id: event.scoring_player_id ?? scoringPlayerId ?? null,
+    };
+
     const { error } = await supabase
       .from("match_events")
-      .insert([{ match_id: matchId, ...event }]);
+      .insert([row]);
 
     if (error) {
       console.error(
         "saveEvent error:", error.message,
-        "| code:", error.code
+        "| code:", error.code,
+        "| details:", error.details
       );
       return { success: false, error };
     }
