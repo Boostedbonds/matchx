@@ -2,14 +2,16 @@
  * ScorerHandoff.jsx
  * src/components/ScorerHandoff.jsx
  *
- * FIXES:
- * 1. Watches handoff_token being cleared in DB (triggered by new scorer in App.jsx)
- *    → calls onHandoffAccepted so old phone demotes cleanly
- * (active_scorer_id is written by App.jsx → loadMatchAndBecomeScorer, which
- *  triggers MatchScorer.jsx's realtime watcher to demote the old scorer device)
+ * FIX: The postgres_changes watcher for handoff_token being cleared was
+ * unreliable because the app uses anon role (no Supabase Auth), so realtime
+ * events were not consistently delivered to this component.
+ *
+ * Fix: Replace the postgres_changes subscription with a simple 2-second poll
+ * that checks if handoff_token has been cleared in the DB. When it's null,
+ * the new scorer has accepted → call onHandoffAccepted to close the panel.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../services/supabase";
 
 const STYLES = `
@@ -23,7 +25,6 @@ const STYLES = `
     padding: 24px;
     animation: sh-fade 0.2s ease;
   }
-
   @keyframes sh-fade { from { opacity: 0; } to { opacity: 1; } }
 
   .sh-card {
@@ -34,7 +35,6 @@ const STYLES = `
     position: relative;
     animation: sh-up 0.25s ease;
   }
-
   @keyframes sh-up {
     from { transform: translateY(12px); opacity: 0; }
     to   { transform: translateY(0);    opacity: 1; }
@@ -54,13 +54,11 @@ const STYLES = `
     font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
     color: rgba(212, 175, 55, 0.6); margin-bottom: 8px;
   }
-
   .sh-title {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 32px; letter-spacing: 0.06em;
     color: #ffd700; margin-bottom: 6px;
   }
-
   .sh-sub {
     font-family: 'Rajdhani', sans-serif;
     font-size: 13px; font-weight: 500;
@@ -72,7 +70,6 @@ const STYLES = `
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 8px; margin-bottom: 24px;
   }
-
   .sh-scope-btn {
     padding: 10px 12px; border: 1px solid; cursor: pointer;
     background: transparent; transition: all 0.2s; text-align: left;
@@ -193,47 +190,45 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
   const [token,   setToken]   = useState(null);
   const [waiting, setWaiting] = useState(false);
 
+  // Store the generated token in a ref so the poll can always access the latest value
+  const tokenRef = useRef(null);
+
   useEffect(() => {
     if (!matchId) return;
     generateToken();
   }, [matchId]);
 
-  // ── FIX 2b: Watch for handoff_token being cleared OR active_scorer_id changing
-  // When the new scorer's App.jsx runs loadMatchAndBecomeScorer, it writes:
-  //   active_scorer_id = newUserId
-  //   handoff_token    = null
-  // This listener fires on the OLD phone and calls onHandoffAccepted to
-  // cleanly close the handoff panel. The actual scorer demotion is handled
-  // separately by MatchScorer.jsx's active_scorer_id watcher.
+  // FIX: Poll every 2s to check if handoff_token has been cleared in DB.
+  // The previous postgres_changes approach was unreliable with anon role —
+  // realtime events weren't consistently delivered, leaving the panel stuck.
+  // Polling is simple and guaranteed to work regardless of auth role.
   useEffect(() => {
-    if (!matchId || !token) return;
+    if (!matchId) return;
 
-    const channel = supabase
-      .channel("handoff-watch-" + matchId)
-      .on(
-        "postgres_changes",
-        {
-          event:  "UPDATE",
-          schema: "public",
-          table:  "matches",
-          filter: `id=eq.${matchId}`,
-        },
-        (payload) => {
-          const row = payload.new;
-          // Token cleared means new scorer accepted handoff
-          if (!row.handoff_token) {
-            onHandoffAccepted?.();
-          }
-        }
-      )
-      .subscribe();
+    const poll = setInterval(async () => {
+      // Only poll if we're actually waiting for a handoff
+      if (!tokenRef.current) return;
 
-    return () => supabase.removeChannel(channel);
-  }, [matchId, token]);
+      const { data } = await supabase
+        .from("matches")
+        .select("handoff_token")
+        .eq("id", matchId)
+        .single();
+
+      // handoff_token cleared = new scorer accepted
+      if (data && data.handoff_token === null) {
+        clearInterval(poll);
+        onHandoffAccepted?.();
+      }
+    }, 2000);
+
+    return () => clearInterval(poll);
+  }, [matchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function generateToken() {
     const t = Math.random().toString(36).slice(2, 10).toUpperCase();
     setToken(t);
+    tokenRef.current = t;
     setWaiting(true);
 
     await supabase
@@ -242,8 +237,6 @@ export default function ScorerHandoff({ matchId, matchData, onClose, onHandoffAc
       .eq("id", matchId);
   }
 
-  // URL format matches what App.jsx checks on load:
-  // App.jsx useEffect: params.get("scorer") === "1" && params.get("matchId")
   function buildHandoffUrl() {
     const base = window.location.origin;
     return `${base}/?scorer=1&matchId=${matchId}&token=${token}&scope=${scope}`;
