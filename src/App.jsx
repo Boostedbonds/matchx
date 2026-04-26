@@ -3,9 +3,13 @@
  * src/App.jsx
  *
  * FIXES:
- * 1. loadMatchAndBecomeScorer writes active_scorer_id + clears handoff_token
- *    → triggers old phone's realtime watcher to demote itself to spectator
- * 2. handleForceDemote added → called by MatchScorer when demoted via realtime
+ * 1. loadMatchAndBecomeScorer now always clears handoff_token regardless of
+ *    Supabase Auth session — app uses access codes not Supabase Auth, so
+ *    supabase.auth.getUser() returns null and the old if (currentUser?.id)
+ *    guard prevented the update from ever running, leaving handoff_token set
+ *    in DB forever → ScorerHandoff poll never detected completion → stuck on
+ *    "Waiting for new scorer to accept" screen indefinitely.
+ * 2. handleForceDemote — called by MatchScorer when demoted via realtime
  * 3. onForceDemote prop passed to MatchScorer
  */
 
@@ -55,10 +59,12 @@ function AppContent() {
     }
   }, [isAuthenticated, ready]);
 
-  // ── FIX 2b: Write active_scorer_id to DB when new scorer takes over ───────
-  // This triggers the old phone's realtime listener (in MatchScorer.jsx) which
-  // watches active_scorer_id. When it sees a different user id, it auto-demotes.
-  // Also clears handoff_token so ScorerHandoff.jsx watcher fires on old phone.
+  // FIX: Removed the if (currentUser?.id) guard that was blocking the DB update.
+  // The app uses access codes (not Supabase Auth), so supabase.auth.getUser()
+  // always returns null. The old guard meant handoff_token was NEVER cleared in
+  // the DB, so ScorerHandoff's poll never detected completion and the original
+  // device stayed stuck on "Waiting for new scorer to accept..." forever.
+  // Now we always clear handoff_token when the new scorer opens the handoff URL.
   async function loadMatchAndBecomeScorer(matchId) {
     const { data, error } = await supabase
       .from("matches")
@@ -67,18 +73,16 @@ function AppContent() {
       .single();
 
     if (data && !error) {
-      // Claim the scorer seat in DB — old phone's realtime listener will see this
-      // and demote itself because active_scorer_id !== their user id
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (currentUser?.id) {
-        await supabase
-          .from("matches")
-          .update({
-            active_scorer_id: currentUser.id,  // FIX: new scorer claims seat
-            handoff_token:    null,             // FIX: clears token → ScorerHandoff watcher fires
-          })
-          .eq("id", matchId);
-      }
+      // Always clear handoff_token — this is what ScorerHandoff polls for.
+      // active_scorer_id set to null since we don't have Supabase Auth user ids.
+      await supabase
+        .from("matches")
+        .update({
+          handoff_token:    null,
+          handoff_scope:    null,
+          active_scorer_id: null,
+        })
+        .eq("id", matchId);
 
       updateRole("scorer");
       setActiveMatch(data);
@@ -147,14 +151,9 @@ function AppContent() {
     if (activeMatch?.id) refreshActiveMatch(activeMatch.id);
   }
 
-  // ── FIX 2b: Called by MatchScorer when active_scorer_id changes away from us
-  // The realtime listener in MatchScorer detects we're no longer the active scorer
-  // and calls this to cleanly demote us in App state too.
   function handleForceDemote() {
-    setShowHandoff(false);   // close handoff panel if open
-    updateRole("spectator"); // update auth context role
-    // Do NOT navigate away — user stays on match screen as spectator
-    // MatchScorer shows the demoted banner and then spectator view
+    setShowHandoff(false);
+    updateRole("spectator");
   }
 
   function handleMatchEnd() {
@@ -181,7 +180,7 @@ function AppContent() {
               role={role}
               onMatchEnd={handleMatchEnd}
               onHandoff={() => setShowHandoff(true)}
-              onForceDemote={handleForceDemote}  // FIX 2b: new prop
+              onForceDemote={handleForceDemote}
             />
             {showHandoff && role === "scorer" && (
               <ScorerHandoff
